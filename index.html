@@ -160,6 +160,7 @@
   <div class="tabs">
     <button class="on" data-tab="save">💰 券后最优价</button>
     <button data-tab="cal">🥗 热量预算配餐</button>
+    <button data-tab="set">🍱 套餐 vs 单点</button>
   </div>
 
   <!-- ============ 省钱模式 ============ -->
@@ -210,6 +211,22 @@
       <h2><span class="ico">🥗</span>推荐方案</h2>
       <div class="sub">以下组合均在你的热量预算内（允许 15% 浮动）</div>
       <div id="planBox"></div>
+    </div>
+  </div>
+
+  <!-- ============ 套餐对比模式 ============ -->
+  <div class="grid" id="tab-set" style="display:none">
+    <div class="card">
+      <h2><span class="ico">🍱</span>当前购物车</h2>
+      <div class="sub">把左边「券后最优价」里选的餐当作一套组合，去比对它的套餐价</div>
+      <div id="bundleCart"></div>
+      <div class="result" id="bundleResult"></div>
+    </div>
+
+    <div class="card">
+      <h2><span class="ico">⚖️</span>套餐一口价对照</h2>
+      <div class="sub">套餐价 ≤ 单点价之和才值得买；否则不如单点 + 用券</div>
+      <div id="bundleBox"></div>
     </div>
   </div>
 
@@ -316,6 +333,16 @@ const COUPONS = [
   {id:"C7", name:"麦乐鸡第二份半价",     kind:"second_half", value:0.5, appliesTo:["nuggets5","nuggets10"], group:"ITEM"},
   {id:"C8", name:"会员日立减 2 元",      kind:"full_reduce", value:2,   threshold:0},
   {id:"C9", name:"早餐时段立减 3 元",    kind:"full_reduce", value:3,   threshold:0, catOnly:["breakfast"], hours:[5,10]},
+];
+
+/* 样例套餐一口价（用于「套餐 vs 单点」对照；价格为演示值） */
+const BUNDLES = [
+  {id:"B1", name:"巨无霸中套餐",   price:38.0, codes:["bigmac","fries-m","coke-m"]},
+  {id:"B2", name:"麦辣鸡腿堡套餐", price:35.0, codes:["mchicken","fries-m","coke-m"]},
+  {id:"B3", name:"板烧鸡腿堡套餐", price:37.0, codes:["gcb","fries-m","coke-m"]},
+  {id:"B4", name:"麦香鱼套餐",     price:31.0, codes:["filet","fries-m","coke-m"]},
+  {id:"B5", name:"双层吉士套餐",   price:34.0, codes:["dblcheese","fries-m","coke-m"]},
+  {id:"B6", name:"早餐满分享",     price:22.0, codes:["egg-mcmuffin","hashbrown","soy-milk"]},
 ];
 
 /* 判断某张券在「当前时刻 + 给定购物车」下是否生效 */
@@ -441,6 +468,25 @@ function optimizePrice(cart, coupons, maxStack=4){
     saved: round2(original - best),
     saveRate: original > 0 ? (original - best)/original : 0,
     used: bestSet,
+  };
+}
+
+/* 套餐一口价 vs 逐项单点价（移植自 optimizer.py: compare_set_vs_single）
+   bundle: { name, price, codes:[...] }；返回套餐相对单点的差额 */
+function compareBundle(bundle, menu){
+  const items = bundle.codes
+    .map(code => menu.find(m => m.code === code))
+    .filter(Boolean);
+  const singleTotal = items.reduce((s,i)=> s + i.price, 0);
+  const diff = singleTotal - bundle.price;   // >0 套餐更省
+  return {
+    name: bundle.name,
+    items,
+    singleTotal: round2(singleTotal),
+    bundlePrice: round2(bundle.price),
+    diff: round2(diff),
+    saveRate: singleTotal > 0 ? diff / singleTotal : 0,
+    worth: diff > 0,
   };
 }
 
@@ -680,6 +726,73 @@ function renderPlans(){
 }
 
 /* ==================================================================
+   套餐 vs 单点
+   ================================================================== */
+function renderBundle(){
+  const cartBox = document.getElementById("bundleCart");
+  const list = MENU.filter(i => cart[i.code]);
+  const resBox = document.getElementById("bundleResult");
+
+  if(!list.length){
+    cartBox.innerHTML = `<div class="empty">先去「券后最优价」页勾几样餐，这里会自动比对套餐价 👈</div>`;
+    resBox.innerHTML = "";
+  } else {
+    cartBox.innerHTML = list.map(i =>
+      `<div class="row sel" style="margin-bottom:7px">
+         <div class="nm">${i.name} ×${cart[i.code]}<small>单点 ¥${(i.price*cart[i.code]).toFixed(1)}</small></div>
+       </div>`).join("");
+    const singleSum = list.reduce((s,i)=> s + i.price*cart[i.code], 0);
+    // 找到与你所选最接近的套餐（按 code 集合交集最大）
+    const myCodes = list.map(i => i.code);
+    let bestMatch = null, bestScore = -1;
+    BUNDLES.forEach(b => {
+      const score = b.codes.filter(c => myCodes.includes(c)).length
+                  - Math.abs(b.codes.length - myCodes.length);
+      if(score > bestScore){ bestScore = score; bestMatch = b; }
+    });
+    resBox.innerHTML = `
+      <div class="bill">
+        <div>
+          <div class="lbl">你选的总单点价</div>
+          <div class="orig">¥${singleSum.toFixed(2)}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="lbl">最接近的套餐</div>
+          <div class="pay" style="font-size:19px">${bestMatch ? bestMatch.name : "—"}</div>
+        </div>
+      </div>
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.9">
+        ${bestMatch ? `套餐含：${bestMatch.codes.map(c=>{
+          const it = MENU.find(m=>m.code===c); return it?it.name:c;
+        }).join(" ＋ ")}，一口价 ¥${bestMatch.price.toFixed(1)}` : "未匹配到套餐"}
+      </div>`;
+  }
+
+  // 全量套餐对照表
+  const rows = BUNDLES.map(b => {
+    const r = compareBundle(b, MENU);
+    const bad = r.items.length !== b.codes.length;
+    const tagCls = r.worth ? "chip k" : "chip p";
+    const verdict = bad ? "数据缺失" : r.worth ? `省 ¥${r.diff.toFixed(1)}` : `贵 ¥${(-r.diff).toFixed(1)}`;
+    const bar = r.worth
+      ? `<div style="height:6px;border-radius:3px;background:linear-gradient(90deg,#1F9254,#5BC98A);width:${Math.min(100,(r.saveRate*100)/0.4*100).toFixed(0)}%"></div>`
+      : `<div style="height:6px;border-radius:3px;background:#E8D9C8"></div>`;
+    return `<div class="plan">
+      <div class="hd">
+        <span class="t">${b.name}</span>
+        <span class="p">¥${r.bundlePrice.toFixed(1)}</span>
+      </div>
+      <div class="items">${r.items.map(i=>i.name).join(" ＋ ")}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
+        单点合计 ¥${r.singleTotal.toFixed(1)} · ${verdict}${r.worth?`（${(r.saveRate*100).toFixed(1)}%）`:""}
+      </div>
+      ${bar}
+    </div>`;
+  }).join("");
+  document.getElementById("bundleBox").innerHTML = rows;
+}
+
+/* ==================================================================
    交互绑定
    ================================================================== */
 document.querySelectorAll(".tabs button").forEach(btn=>{
@@ -688,7 +801,9 @@ document.querySelectorAll(".tabs button").forEach(btn=>{
     const t = btn.dataset.tab;
     document.getElementById("tab-save").style.display = t==="save" ? "grid" : "none";
     document.getElementById("tab-cal").style.display  = t==="cal"  ? "grid" : "none";
+    document.getElementById("tab-set").style.display  = t==="set"  ? "grid" : "none";
     if(t==="cal") renderPlans();
+    if(t==="set") renderBundle();
   };
 });
 
