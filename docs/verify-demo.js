@@ -24,12 +24,15 @@ const sandbox = { console };
 vm.createContext(sandbox);
 vm.runInContext(algo, sandbox);
 vm.runInContext('globalThis.__C = COUPONS; globalThis.__op = optimizePrice;'
-  + 'globalThis.__plan = planCalorieBudget; globalThis.__ca = couponActive;', sandbox);
+  + 'globalThis.__plan = planCalorieBudget; globalThis.__ca = couponActive;'
+  + 'globalThis.__cb = compareBundle; globalThis.__B = BUNDLES; globalThis.__M = MENU;', sandbox);
 
 const C = sandbox.__C;
 const op = sandbox.__op;
 const plan = sandbox.__plan;
 const ca = sandbox.__ca;
+const compareBundle = sandbox.__cb;
+const MENU = sandbox.__M;
 const pick = ids => C.filter(c => ids.includes(c.id));
 
 let pass = 0, fail = 0;
@@ -100,6 +103,23 @@ console.log('\n— 券生效条件（时段 / 分类）—');
   assert('C9 早餐券 08:00 但购物车无早餐 → 不生效', ca(c9, at8, ['bigmac']) === false);
   const c1 = C.find(c => c.id === 'C1');
   assert('C1 无时段限制 → 任意时刻生效', ca(c1, at15, ['bigmac']) === true);
+}
+
+console.log('\n— 套餐 vs 单点 —');
+{
+  // 巨无霸 25.5 + 中薯 11.5 + 中可 9 = 46，套餐 38 → 省 8
+  const r = compareBundle({ name: '巨无霸中套餐', price: 38, codes: ['bigmac', 'fries-m', 'coke-m'] }, MENU);
+  eq('套餐单点合计', r.singleTotal, 46);
+  eq('套餐差额', r.diff, 8);
+  assert('套餐更省判定', r.worth === true);
+  assert('saveRate 计算正确', Math.abs(r.saveRate - 8 / 46) < 1e-4, 'rate=' + r.saveRate.toFixed(4));
+  // 反向：把套餐价抬到 60 → 不划算
+  const bad = compareBundle({ name: '贵套餐', price: 60, codes: ['bigmac', 'fries-m', 'coke-m'] }, MENU);
+  assert('套餐更贵判定', bad.worth === false && bad.diff === -14, 'diff=' + bad.diff);
+  // 所有内置套餐 code 都能在菜单里找到
+  const missing = [];
+  sandbox.__B.forEach(b => b.codes.forEach(c => { if (!MENU.find(m => m.code === c)) missing.push(c); }));
+  assert('内置套餐 code 全部存在于菜单', missing.length === 0, missing.join(','));
 }
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
