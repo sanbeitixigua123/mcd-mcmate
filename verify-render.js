@@ -22,13 +22,13 @@ function mkEl(id) {
 }
 ['catBox','statBox','menuBox','couponBox','saveResult','planBox','kcal','kcalVal',
  'bundleCart','bundleResult','bundleBox','menuCount','search','stratBox','tab-save',
- 'tab-cal','tab-set'].forEach(mkEl);
+ 'tab-cal','tab-set','tab-mcp','toolSearch','toolBox','toolStat','mapBox'].forEach(mkEl);
 
 const doc = {
   getElementById: id => made.get(id) || mkEl(id),
   querySelectorAll: sel => {
     // tabs: 3 个按钮；stratBox: 4 个按钮
-    if (sel === '.tabs button') return [0,1,2].map(i => mkEl('tabbtn' + i));
+    if (sel === '.tabs button') return [0,1,2,3].map(i => mkEl('tabbtn' + i));
     if (sel === '#stratBox button') return [0,1,2,3].map(i => mkEl('stratbtn' + i));
     return [];
   },
@@ -52,6 +52,8 @@ const checks = [
   ['renderCoupons', '优惠券渲染'],
   ['renderCats', '分类渲染'],
   ['renderMenu', '菜单渲染'],
+  ['renderTools', 'MCP 工具渲染'],
+  ['renderMcpMap', 'MCP 映射渲染'],
 ];
 side_effect: for (const [fn, label] of checks) {
   try {
@@ -73,9 +75,32 @@ console.log(saveHtml.includes('券后应付') || saveHtml.includes('加点餐品
 const bundleHtml = made.get('bundleBox').innerHTML;
 console.log(bundleHtml.includes('套餐') ? 'PASS  套餐对照表渲染正常' : 'FAIL  套餐对照表异常');
 
+const toolHtml = made.get('toolBox').innerHTML;
+console.log(toolHtml.includes('query-meals') && toolHtml.includes('create-order')
+  ? 'PASS  MCP 工具清单渲染正常' : 'FAIL  MCP 工具清单异常');
+console.log(made.get('mapBox').innerHTML.includes('calculate-price')
+  ? 'PASS  MCP 映射表渲染正常' : 'FAIL  MCP 映射表异常');
+
 // 模拟点击「+」加一份 / 「清空」
 vm.runInContext("chg('bigmac', 1)", sandbox);
 vm.runInContext('renderSave(); renderCoupons();', sandbox);
 console.log('PASS  加减餐交互无异常');
 
 console.log('\n全部渲染检查完成');
+
+// 校验 Demo 内的工具清单与 references/tools.md 完全一致（防止两边漂移）
+const toolsMd = path.join(__dirname, '..', 'references', 'tools.md');
+if (fs.existsSync(toolsMd)) {
+  const md = fs.readFileSync(toolsMd, 'utf8');
+  const listed = new Set([...md.matchAll(/^\|\s*`([a-z0-9-]+)`/gm)].map(m => m[1]));
+  const inDemo = new Set(
+    [...html.matchAll(/\{n:"([a-z0-9-]+)"/g)].map(m => m[1]));
+  const onlyMd = [...listed].filter(x => !inDemo.has(x));
+  const onlyDemo = [...inDemo].filter(x => !listed.has(x));
+  console.log(`文档工具数 ${listed.size} / Demo 工具数 ${inDemo.size}`);
+  console.log(onlyMd.length === 0 && onlyDemo.length === 0
+    ? 'PASS  Demo 工具清单与 references/tools.md 一致'
+    : `FAIL  不一致：仅文档有 [${onlyMd}]；仅 Demo 有 [${onlyDemo}]`);
+} else {
+  console.log('SKIP  未找到 references/tools.md');
+}
