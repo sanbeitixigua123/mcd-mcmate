@@ -3,7 +3,12 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+const htmlPath = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : path.join(__dirname, 'index.html');
+if (!fs.existsSync(htmlPath)) { console.error('找不到文件:', htmlPath); process.exit(1); }
+const html = fs.readFileSync(htmlPath, 'utf8');
+console.log('校验目标:', path.basename(htmlPath) === 'index.html' ? htmlPath : htmlPath);
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
 const made = new Map();
