@@ -2,6 +2,9 @@
 
 > 一句话搞定麦当劳：**点餐 + 省钱 + 营养 + 活动**，四个助手合成一个搭子。
 
+🔗 **在线体验（无需安装、无需 Token）**：<https://sanbeitixigua123.github.io/mcd-mcmate/>
+—— 网页版「麦麦省钱计算器」，输入你点的餐，实时算出券后最低价与热量预算配餐方案。
+
 基于**麦当劳中国官方 MCP 服务**（`https://mcp.mcd.cn`）开发的 Agent Skill。它不绑定任何特定框架——`SKILL.md` 全程用官方工具名描述流程，可接入 **WorkBuddy**、Claude Code、Cursor、Trae、Cherry Studio 等任意支持 MCP 的客户端。
 
 **2026 麦当劳程序员创意开发大赛参赛作品**（使用 WorkBuddy 开发）。
@@ -161,7 +164,9 @@ mcd-mcmate/
 │   └── smoke_test.py         # 只读冒烟测试
 └── docs/
     ├── ARCHITECTURE.md       # 架构与设计说明
-    └── TEST_REPORT.md        # 真实环境只读实测报告（35 工具 / 文档偏差）
+    ├── TEST_REPORT.md        # 真实环境只读实测报告（35 工具 / 文档偏差）
+    ├── index.html            # 网页版「麦麦省钱计算器」在线 Demo（纯静态）
+    └── verify-demo.js        # Demo 算法一致性校验（与 optimizer.py 对齐）
 ```
 
 ---
