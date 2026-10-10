@@ -112,6 +112,8 @@
   .plan .items{display:flex; flex-wrap:wrap; gap:8px; font-size:12.5px; color:var(--code); margin-bottom:9px; line-height:1.6}
   .plan .itm{display:flex; align-items:center; gap:6px; background:#FBF6F0; border-radius:9px; padding:4px 9px 4px 5px}
   .plan .itm .thumb{width:30px; height:30px; border-radius:8px; border-color:#EFE2D3}
+  .plan .itm .ilbl{display:flex; flex-direction:column; line-height:1.25}
+  .plan .itm .ilbl em{font-style:normal; font-size:10.5px; color:var(--muted)}
   .plan .addplan{
     width:100%; margin-top:10px; padding:8px; border-radius:9px; cursor:pointer;
     border:1px solid #E8CDB4; background:#FFF9F3; color:var(--mcd-red);
@@ -155,6 +157,24 @@
     padding:11px 14px; font-size:13px; color:#1E6B42; margin-bottom:12px;
   }
   .used b{color:var(--green)}
+
+  /* 明细小票 */
+  .receipt{margin-bottom:12px; border:1px dashed #E8D9C8; border-radius:10px; background:#FFFDFA}
+  .receipt summary{
+    cursor:pointer; padding:9px 13px; font-size:12.5px; color:var(--muted);
+    list-style:none; user-select:none;
+  }
+  .receipt summary::-webkit-details-marker{display:none}
+  .receipt summary::before{content:"▸ "; color:var(--mcd-red)}
+  .receipt[open] summary::before{content:"▾ "}
+  .receipt summary:hover{color:var(--mcd-red)}
+  .rlines{padding:0 13px 11px; font-size:12.5px}
+  .rl{display:flex; justify-content:space-between; gap:10px; padding:3px 0; color:var(--code)}
+  .rl .rt em{font-style:normal; color:var(--muted); font-size:11.5px}
+  .rl .rv{font-variant-numeric:tabular-nums}
+  .rl.rsum{border-top:1px solid var(--line); margin-top:4px; padding-top:6px; color:var(--muted)}
+  .rl.rdis{color:var(--green)}
+  .rl.rpay{border-top:1px solid var(--line); margin-top:3px; padding-top:6px; font-weight:800; color:var(--mcd-red)}
   .plan{
     border:1px solid var(--line); border-radius:12px; padding:12px 14px;
     margin-bottom:10px; background:#FFFDFA;
@@ -220,6 +240,7 @@
           <button id="vList" class="on" onclick="setView('list')" title="列表视图">☰</button>
           <button id="vGrid" onclick="setView('grid')" title="网格视图">▦</button>
         </div>
+        <button onclick="shareOrder(this)" title="复制可分享的链接">🔗 分享</button>
         <button onclick="clearCart()">清空</button>
       </div>
       <div class="cats" id="catBox"></div>
@@ -1263,7 +1284,28 @@ function renderSave(){
     ${savings}
     ${used}
     ${blockedTip}
-    <div style="font-size:12px;color:var(--muted);line-height:1.9">
+    <details class="receipt" ${list.length <= 8 ? "open" : ""}>
+      <summary>明细小票（${list.reduce((s,i)=>s+cart[i.code],0)} 件）</summary>
+      <div class="rlines">
+        ${list.map(i=>`<div class="rl">
+          <span class="rt">${i.name} <em>×${cart[i.code]}</em></span>
+          <span class="rv">¥${(i.price*cart[i.code]).toFixed(2)}</span>
+        </div>`).join("")}
+        <div class="rl rsum">
+          <span class="rt">合计</span>
+          <span class="rv">¥${r.original.toFixed(2)}</span>
+        </div>
+        ${r.saved > 0.005 ? `<div class="rl rdis">
+          <span class="rt">优惠</span>
+          <span class="rv">−¥${r.saved.toFixed(2)}</span>
+        </div>` : ""}
+        <div class="rl rpay">
+          <span class="rt">应付</span>
+          <span class="rv">¥${r.payable.toFixed(2)}</span>
+        </div>
+      </div>
+    </details>
+    <div style="font-size:12px;color:var(--muted);line-height:1.9;margin-top:10px">
       已勾选 ${COUPONS.filter(c=>couponState[c.id]).length} 张券 · 本次生效 ${picked.length} 张 ·
       引擎穷举了所有可行组合，取实付最低者<br>
       试算顺序：单品特价 → 第二份半价 → 折扣 → 满减
@@ -1277,7 +1319,10 @@ function renderPlans(){
   if(!plans.length){ box.innerHTML = `<div class="empty">该预算下没有合适组合，试试调高上限</div>`; return; }
   box.innerHTML = plans.map((p,idx)=>{
     const items = p.items.map(([it,q]) =>
-      `<span class="itm"><span class="thumb">${dishArt(it.code, it.cat)}</span>${it.name}${q>1?"×"+q:""}</span>`
+      `<span class="itm" title="${it.name} ¥${it.price.toFixed(1)} × ${q}">
+         <span class="thumb">${dishArt(it.code, it.cat)}</span>
+         <span class="ilbl">${it.name}${q>1?"×"+q:""}<em>¥${(it.price*q).toFixed(1)}</em></span>
+       </span>`
     ).join("");
     const codes = p.items.map(([it,q]) => ({code:it.code, price:it.price, qty:q}));
     // 该方案在当前勾选券下的券后价（复用同一个引擎，保证口径一致）
@@ -1443,6 +1488,64 @@ document.querySelectorAll("#stratBox button").forEach(btn=>{
    ================================================================== */
 const STORE_KEY = "mcmate.demo.v1";
 
+/* ---------- URL 分享：把购物车编码进地址，无需后端 ---------- */
+/* 格式：#c=bigmac.2,fries-m.1&k=C1,C5  （只带 code/qty 与券 id，短且可读） */
+function encodeShare(){
+  const parts = Object.keys(cart)
+    .filter(k => cart[k] > 0)
+    .sort()
+    .map(k => k + "." + cart[k]);
+  const cs = COUPONS.filter(c => couponState[c.id]).map(c => c.id).sort();
+  let hash = "";
+  if(parts.length) hash += "c=" + parts.join(",");
+  if(cs.length) hash += (hash ? "&" : "") + "k=" + cs.join(",");
+  return hash;
+}
+
+function decodeShare(hash){
+  const h = String(hash || "").replace(/^#/, "");
+  if(!h) return false;
+  const params = {};
+  h.split("&").forEach(pair => {
+    const i = pair.indexOf("=");
+    if(i > 0) params[pair.slice(0, i)] = decodeURIComponent(pair.slice(i + 1));
+  });
+  let touched = false;
+  if(params.c){
+    Object.keys(cart).forEach(k => delete cart[k]);
+    params.c.split(",").forEach(item => {
+      const [code, q] = item.split(".");
+      const n = parseInt(q, 10);
+      if(MENU.some(m => m.code === code) && n > 0) { cart[code] = Math.min(n, 99); touched = true; }
+    });
+  }
+  if(params.k){
+    COUPONS.forEach(c => { couponState[c.id] = false; });
+    params.k.split(",").forEach(id => {
+      if(COUPONS.some(c => c.id === id)) { couponState[id] = true; touched = true; }
+    });
+  }
+  return touched;
+}
+
+/* 复制当前方案的可分享链接 */
+function shareOrder(btn){
+  const hash = encodeShare();
+  const url = location.origin + location.pathname + (hash ? "#" + hash : "");
+  const done = () => {
+    const old = btn.textContent;
+    btn.textContent = "✓ 已复制链接";
+    setTimeout(() => { btn.textContent = old; }, 1600);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(done).catch(() => {
+      prompt("复制这个链接分享你的点餐方案：", url);
+    });
+  } else {
+    prompt("复制这个链接分享你的点餐方案：", url);
+  }
+}
+
 function saveState(){
   try{
     localStorage.setItem(STORE_KEY, JSON.stringify({
@@ -1471,9 +1574,11 @@ function loadState(){
   }catch(e){ return false; }
 }
 
-/* 初始状态：优先读本地存档，否则给一份更省的默认组合 */
-if(!loadState()){
-  cart["bigmac"] = 1; cart["fries-m"] = 1; cart["coke-m"] = 1;
+/* 初始状态：优先 URL 分享参数 → 本地存档 → 默认组合 */
+if(!decodeShare(location.hash)){
+  if(!loadState()){
+    cart["bigmac"] = 1; cart["fries-m"] = 1; cart["coke-m"] = 1;
+  }
 }
 if(viewMode === "grid"){
   document.getElementById("vList").classList.remove("on");

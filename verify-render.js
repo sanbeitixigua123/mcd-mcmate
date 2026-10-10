@@ -50,6 +50,8 @@ const doc = {
 };
 const sandbox = { console, document: doc, Date, localStorage, JSON };
 sandbox.window = sandbox;   // 在浏览器里 window === globalThis；这里做等价处理
+sandbox.location = { origin: 'https://example.com', pathname: '/mcd-mcmate/', hash: '' };
+sandbox.navigator = {};
 vm.createContext(sandbox);
 
 try {
@@ -170,6 +172,44 @@ const stale = vm.runInContext(`
 console.log(stale.indexOf('not-a-real-code') === -1 && stale.indexOf('bigmac') >= 0
   ? 'PASS  持久化丢弃未知 code'
   : `FAIL  未过滤未知 code: ${stale.join(',')}`);
+
+// 校验 URL 分享：编码 → 解码 往返一致
+const share = vm.runInContext(`
+  (function(){
+    localStorage.clear();
+    Object.keys(cart).forEach(function(k){ delete cart[k]; });
+    cart['bigmac'] = 2; cart['corn-cup'] = 1;
+    COUPONS.forEach(function(c){ couponState[c.id] = false; });
+    couponState['C2'] = true; couponState['C8'] = true;
+    var hash = encodeShare();
+    // 清空后再解码，应完全还原
+    Object.keys(cart).forEach(function(k){ delete cart[k]; });
+    COUPONS.forEach(function(c){ couponState[c.id] = false; });
+    var ok = decodeShare('#' + hash);
+    return { hash: hash, ok: ok, bigmac: cart['bigmac'], corn: cart['corn-cup'],
+             c2: couponState['C2'], c8: couponState['C8'],
+             c1: couponState['C1'], keys: Object.keys(cart).length };
+  })()
+`, sandbox);
+console.log(share.ok && share.bigmac === 2 && share.corn === 1
+    && share.c2 && share.c8 && !share.c1 && share.keys === 2
+  ? `PASS  URL 分享编解码往返正确 (${share.hash})`
+  : `FAIL  URL 分享异常: ${JSON.stringify(share)}`);
+
+// 校验分享链接里的非法 code 会被忽略
+const shareBad = vm.runInContext(`
+  (function(){
+    Object.keys(cart).forEach(function(k){ delete cart[k]; });
+    decodeShare('#c=bigmac.1,evil-code.9,cone.2&k=C1,NOT_A_COUPON');
+    return { keys: Object.keys(cart).sort(), c1: couponState['C1'] };
+  })()
+`, sandbox);
+console.log(shareBad.keys.indexOf('evil-code') === -1
+    && shareBad.keys.indexOf('bigmac') >= 0
+    && shareBad.keys.indexOf('cone') >= 0
+    && shareBad.keys.length === 2
+  ? 'PASS  分享链接忽略非法 code'
+  : `FAIL  未过滤非法 code: ${JSON.stringify(shareBad)}`);
 
 console.log('\n全部渲染检查完成');
 
