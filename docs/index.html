@@ -4,7 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>麦麦省钱计算器 · McMate Demo</title>
-<meta name="description" content="麦当劳点餐省钱计算器：100+ 在售餐品，券后最优价 + 热量预算配餐，基于麦麦全能搭子 (McMate) 决策引擎的纯前端演示。">
+<meta name="description" content="麦当劳点餐省钱计算器：59 款在售餐品，券后最优价 + 热量预算配餐，基于麦麦全能搭子 (McMate) 决策引擎的纯前端演示。">
+<meta name="keywords" content="麦当劳,优惠券,最省钱,热量,配餐,MCP,McMate">
+<meta property="og:title" content="麦麦省钱计算器 · McMate Demo">
+<meta property="og:description" content="券后最低价自动计算 + 热量预算配餐，纯前端在线演示。">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍔</text></svg>">
 <style>
   :root{
     --mcd-red:#DA291C; --mcd-yellow:#FFC72C; --mcd-dark:#292929;
@@ -296,7 +301,11 @@ const MENU = [
 ];
 
 /* 券：group 相同则互斥，group 为空则可自由叠加
-   kind: full_reduce（满减）/ discount（折扣）/ item_price（单品特价）/ second_half（第二份半价） */
+   kind: full_reduce（满减）/ discount（折扣）/ item_price（单品特价）/ second_half（第二份半价）
+   可选字段：
+     appliesTo  仅对这些 code 生效（缺省=全场）
+     catOnly    仅对这些分类生效（缺省=不限）
+     hours      仅在该小时区间内生效 [起, 止)，支持跨零点（如 [22,24] / [0,10]） */
 const COUPONS = [
   {id:"C1", name:"全场满 30 减 6",       kind:"full_reduce", value:6,   threshold:30, group:"ORDER"},
   {id:"C2", name:"全场 9 折",            kind:"discount",    value:0.10,               group:"ORDER"},
@@ -306,8 +315,27 @@ const COUPONS = [
   {id:"C6", name:"可乐第二份半价",       kind:"second_half", value:0.5, appliesTo:["coke-s","coke-m","coke-l","coke-zero-m"], group:"ITEM"},
   {id:"C7", name:"麦乐鸡第二份半价",     kind:"second_half", value:0.5, appliesTo:["nuggets5","nuggets10"], group:"ITEM"},
   {id:"C8", name:"会员日立减 2 元",      kind:"full_reduce", value:2,   threshold:0},
-  {id:"C9", name:"早餐时段立减 3 元",    kind:"full_reduce", value:3,   threshold:0, appliesTo:null},
+  {id:"C9", name:"早餐时段立减 3 元",    kind:"full_reduce", value:3,   threshold:0, catOnly:["breakfast"], hours:[5,10]},
 ];
+
+/* 判断某张券在「当前时刻 + 给定购物车」下是否生效 */
+function couponActive(c, now=new Date(), cartCodes=null){
+  if(c.hours){
+    const h = now.getHours();
+    const [a,b] = c.hours;
+    const inWindow = a <= b ? (h >= a && h < b) : (h >= a || h < b);
+    if(!inWindow) return false;
+  }
+  if(c.catOnly){
+    if(!cartCodes || !cartCodes.length) return false;
+    const ok = cartCodes.some(code => {
+      const it = MENU.find(m => m.code === code);
+      return it && c.catOnly.includes(it.cat);
+    });
+    if(!ok) return false;
+  }
+  return true;
+}
 
 /* ==================================================================
    1. 券后最优价引擎（移植自 optimizer.py，新增 second_half）
@@ -490,6 +518,7 @@ const CATS = [
   ["all","全部"], ["burger","汉堡"], ["wrap","卷类"], ["side","小食"],
   ["dessert","甜品"], ["drink","饮品"], ["breakfast","早餐"]
 ];
+const CAT_LABEL = Object.fromEntries(CATS);
 const cart = {};
 const couponState = {};
 COUPONS.forEach(c => couponState[c.id] = (c.id === "C1" || c.id === "C5"));
@@ -541,14 +570,21 @@ function renderCoupons(){
                 : c.kind==="discount"    ? `打 ${(10-c.value*10).toFixed(1)} 折`
                 : c.kind==="second_half" ? `第 2 份半价`
                 : `单品压到 ¥${c.value}`;
+  const cartCodes = Object.keys(cart);
   document.getElementById("couponBox").innerHTML = COUPONS.map(c=>{
     const on = couponState[c.id];
+    const live = couponActive(c, new Date(), cartCodes);
     const tag = c.group ? `<span class="tag excl">同组互斥</span>`
                         : `<span class="tag stack">可叠加</span>`;
-    return `<label class="cp">
+    const off = live ? "" : `<span class="tag" style="background:#EEE9E3;color:#8A7F76">当前不可用</span>`;
+    const note = !live && c.hours
+      ? `<span style="color:var(--muted);font-size:11px">仅 ${c.hours[0]}:00–${c.hours[1]}:00</span>`
+      : !live && c.catOnly ? `<span style="color:var(--muted);font-size:11px">需含${
+          c.catOnly.map(k=>CAT_LABEL[k]||k).join("/")}</span>` : "";
+    return `<label class="cp" style="${live?"":"opacity:.62"}">
       <input type="checkbox" ${on?"checked":""} onchange="toggleCp('${c.id}',this.checked)">
-      <span style="flex:1">${c.name} <span style="color:var(--muted);font-size:11.5px">（${desc(c)}）</span></span>
-      ${tag}
+      <span style="flex:1">${c.name} <span style="color:var(--muted);font-size:11.5px">（${desc(c)}）</span>${note}</span>
+      ${tag}${off}
     </label>`;
   }).join("");
 }
@@ -557,9 +593,9 @@ function setCat(k){ curCat = k; renderCats(); renderMenu(); }
 function chg(code, d){
   const n = (cart[code]||0) + d;
   if(n <= 0) delete cart[code]; else cart[code] = n;
-  renderMenu(); renderSave();
+  renderMenu(); renderCoupons(); renderSave();
 }
-function clearCart(){ Object.keys(cart).forEach(k=>delete cart[k]); renderMenu(); renderSave(); }
+function clearCart(){ Object.keys(cart).forEach(k=>delete cart[k]); renderMenu(); renderCoupons(); renderSave(); }
 function toggleCp(id, on){ couponState[id] = on; renderSave(); }
 
 function renderSave(){
@@ -570,7 +606,9 @@ function renderSave(){
     return;
   }
   const cartArr = list.map(i => ({code:i.code, price:i.price, qty:cart[i.code]}));
-  const picked = COUPONS.filter(c => couponState[c.id]);
+  const cartCodes = cartArr.map(l => l.code);
+  // 只把「当前时段/分类下确实生效」的券交给引擎
+  const picked = COUPONS.filter(c => couponState[c.id] && couponActive(c, new Date(), cartCodes));
   const r = optimizePrice(cartArr, picked, 4);
 
   const savings = r.saved > 0.005
@@ -581,8 +619,20 @@ function renderSave(){
   const used = r.used.length
     ? `<div class="used">✅ 最优用券组合：<b>${r.used.map(c=>c.name).join(" + ")}</b></div>`
     : `<div class="used" style="background:#F7F4F1;border-color:#EAE2DA;color:#7A6E64">
-         ⚠️ 当前勾选的券都用不上（未达门槛或不适用），建议调整
+         ⚠️ 当前勾选的券都用不上（未达门槛 / 不适用 / 不在生效时段），建议调整
        </div>`;
+
+  // 勾了但因时段或分类不生效的券，明确提示原因
+  const blocked = COUPONS.filter(c => couponState[c.id] && !picked.includes(c));
+  const blockedTip = blocked.length
+    ? `<div style="font-size:12px;color:#8A5A00;background:#FFF7E4;border:1px solid #F3E0B0;
+        border-radius:10px;padding:9px 12px;margin-bottom:12px;line-height:1.7">
+         ⏰ 已勾选但暂不生效：${blocked.map(c=>{
+           const why = c.hours ? `仅 ${c.hours[0]}:00–${c.hours[1]}:00 可用`
+                     : c.catOnly ? `需含${c.catOnly.map(k=>CAT_LABEL[k]||k).join("/")}商品` : "不适用";
+           return `<b>${c.name}</b>（${why}）`;
+         }).join("；")}
+       </div>` : "";
 
   box.innerHTML = `
     <div class="bill">
@@ -597,8 +647,10 @@ function renderSave(){
     </div>
     ${savings}
     ${used}
+    ${blockedTip}
     <div style="font-size:12px;color:var(--muted);line-height:1.9">
-      已勾选 ${picked.length} 张券 · 引擎穷举了所有可行组合，取实付最低者<br>
+      已勾选 ${COUPONS.filter(c=>couponState[c.id]).length} 张券 · 本次生效 ${picked.length} 张 ·
+      引擎穷举了所有可行组合，取实付最低者<br>
       试算顺序：单品特价 → 第二份半价 → 折扣 → 满减
     </div>`;
 }
