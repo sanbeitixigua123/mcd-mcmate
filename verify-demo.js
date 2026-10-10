@@ -24,11 +24,12 @@ const sandbox = { console };
 vm.createContext(sandbox);
 vm.runInContext(algo, sandbox);
 vm.runInContext('globalThis.__C = COUPONS; globalThis.__op = optimizePrice;'
-  + 'globalThis.__plan = planCalorieBudget;', sandbox);
+  + 'globalThis.__plan = planCalorieBudget; globalThis.__ca = couponActive;', sandbox);
 
 const C = sandbox.__C;
 const op = sandbox.__op;
 const plan = sandbox.__plan;
+const ca = sandbox.__ca;
 const pick = ids => C.filter(c => ids.includes(c.id));
 
 let pass = 0, fail = 0;
@@ -88,6 +89,18 @@ assert('低钠策略钠含量更低', pLow.length > 0 && pLow[0].sodium < pPro[0
 const pCheap = plan(700, 'cheapest');
 assert('省钱策略价格 ≤ 均衡策略', pCheap.length > 0 && pCheap[0].price <= pBal[0].price * 1.5,
   pCheap.length ? '¥' + pCheap[0].price : '无结果');
+
+console.log('\n— 券生效条件（时段 / 分类）—');
+{
+  const c9 = C.find(c => c.id === 'C9');
+  const at8 = new Date(2026, 0, 1, 8, 0);
+  const at15 = new Date(2026, 0, 1, 15, 0);
+  assert('C9 早餐券 08:00 生效', ca(c9, at8, ['egg-mcmuffin']) === true);
+  assert('C9 早餐券 15:00 不生效', ca(c9, at15, ['egg-mcmuffin']) === false);
+  assert('C9 早餐券 08:00 但购物车无早餐 → 不生效', ca(c9, at8, ['bigmac']) === false);
+  const c1 = C.find(c => c.id === 'C1');
+  assert('C1 无时段限制 → 任意时刻生效', ca(c1, at15, ['bigmac']) === true);
+}
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
 process.exit(fail ? 1 : 0);
