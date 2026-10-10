@@ -22,7 +22,17 @@ function mkEl(id) {
 }
 ['catBox','statBox','menuBox','couponBox','saveResult','planBox','kcal','kcalVal',
  'bundleCart','bundleResult','bundleBox','menuCount','search','stratBox','tab-save',
- 'tab-cal','tab-set','tab-mcp','toolSearch','toolBox','toolStat','mapBox'].forEach(mkEl);
+ 'tab-cal','tab-set','tab-mcp','toolSearch','toolBox','toolStat','mapBox',
+ 'vList','vGrid'].forEach(mkEl);
+
+/* localStorage 桩：让持久化逻辑在 Node 里也能跑通 */
+const _store = new Map();
+const localStorage = {
+  getItem: k => (_store.has(k) ? _store.get(k) : null),
+  setItem: (k, v) => _store.set(k, String(v)),
+  removeItem: k => _store.delete(k),
+  clear: () => _store.clear(),
+};
 
 const doc = {
   getElementById: id => made.get(id) || mkEl(id),
@@ -33,7 +43,8 @@ const doc = {
     return [];
   },
 };
-const sandbox = { console, document: doc, window: {}, Date };
+const sandbox = { console, document: doc, Date, localStorage, JSON };
+sandbox.window = sandbox;   // 在浏览器里 window === globalThis；这里做等价处理
 vm.createContext(sandbox);
 
 try {
@@ -85,6 +96,75 @@ console.log(made.get('mapBox').innerHTML.includes('calculate-price')
 vm.runInContext("chg('bigmac', 1)", sandbox);
 vm.runInContext('renderSave(); renderCoupons();', sandbox);
 console.log('PASS  加减餐交互无异常');
+
+// 校验缩略图：每道菜都有 SVG，且不含 undefined 颜色
+const artChecks = vm.runInContext(`
+  (function(){
+    var miss = [], undef = [];
+    MENU.forEach(function(m){
+      var s = dishArt(m.code, m.cat);
+      if(!s || s.indexOf('<svg') !== 0) miss.push(m.code);
+      if(/undefined/.test(s)) undef.push(m.code);
+    });
+    return { total: MENU.length, miss: miss, undef: undef };
+  })()
+`, sandbox);
+console.log(artChecks.miss.length === 0
+  ? `PASS  全部 ${artChecks.total} 道菜均有缩略图`
+  : `FAIL  缺缩略图: ${artChecks.miss.join(',')}`);
+console.log(artChecks.undef.length === 0
+  ? 'PASS  缩略图无 undefined 颜色'
+  : `FAIL  含 undefined 颜色: ${artChecks.undef.join(',')}`);
+
+// 校验配餐方案去重：不应出现主餐+小食骨架完全相同的重复方案
+const dedup = vm.runInContext(`
+  (function(){
+    var bad = [];
+    ['balanced','protein','low_sodium','cheapest'].forEach(function(st){
+      var plans = planCalorieBudget(600, st, 3);
+      var keys = plans.filter(function(p){ return !p.nearDupe; }).map(function(p){
+        return p.items.filter(function(x){
+          return x[0].cat==='burger'||x[0].cat==='wrap'||x[0].cat==='side';
+        }).map(function(x){ return x[0].code; }).sort().join('|');
+      });
+      var dup = keys.filter(function(k,i){ return keys.indexOf(k) !== i; });
+      if(dup.length) bad.push(st + ':' + dup.join(','));
+    });
+    return bad;
+  })()
+`, sandbox);
+console.log(dedup.length === 0
+  ? 'PASS  配餐方案骨架已去重'
+  : `FAIL  仍有重复骨架: ${dedup.join(' | ')}`);
+
+// 校验持久化：写 → 读 应还原购物车
+const persist = vm.runInContext(`
+  (function(){
+    cart['bigmac'] = 2; cart['cone'] = 1;
+    Object.keys(cart).forEach(function(k){ if(k!=='bigmac'&&k!=='cone') delete cart[k]; });
+    saveState();
+    Object.keys(cart).forEach(function(k){ delete cart[k]; });
+    var had = loadState();
+    return { had: had, bigmac: cart['bigmac'], cone: cart['cone'], keys: Object.keys(cart).length };
+  })()
+`, sandbox);
+console.log(persist.had && persist.bigmac === 2 && persist.cone === 1
+  ? 'PASS  购物车持久化往返正确'
+  : `FAIL  持久化异常: ${JSON.stringify(persist)}`);
+
+// 校验持久化会丢弃已下架的 code
+const stale = vm.runInContext(`
+  (function(){
+    localStorage.setItem('mcmate.demo.v1', JSON.stringify({
+      cart: { bigmac: 1, 'not-a-real-code': 5 }, coupons: {}
+    }));
+    loadState();
+    return Object.keys(cart);
+  })()
+`, sandbox);
+console.log(stale.indexOf('not-a-real-code') === -1 && stale.indexOf('bigmac') >= 0
+  ? 'PASS  持久化丢弃未知 code'
+  : `FAIL  未过滤未知 code: ${stale.join(',')}`);
 
 console.log('\n全部渲染检查完成');
 
