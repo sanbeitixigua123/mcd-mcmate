@@ -161,6 +161,7 @@
     <button class="on" data-tab="save">💰 券后最优价</button>
     <button data-tab="cal">🥗 热量预算配餐</button>
     <button data-tab="set">🍱 套餐 vs 单点</button>
+    <button data-tab="mcp">🔌 官方 MCP 能力</button>
   </div>
 
   <!-- ============ 省钱模式 ============ -->
@@ -227,6 +228,25 @@
       <h2><span class="ico">⚖️</span>套餐一口价对照</h2>
       <div class="sub">套餐价 ≤ 单点价之和才值得买；否则不如单点 + 用券</div>
       <div id="bundleBox"></div>
+    </div>
+  </div>
+
+  <!-- ============ 官方 MCP 能力 ============ -->
+  <div class="grid" id="tab-mcp" style="display:none">
+    <div class="card">
+      <h2><span class="ico">🔌</span>麦当劳官方 MCP · 35 个工具</h2>
+      <div class="sub">本 Demo 的算法来自 McMate；真实点餐链路由这些工具完成（2026-10-09 实测）</div>
+      <div class="toolbar">
+        <input id="toolSearch" placeholder="搜索工具名或用途，如「优惠券」「下单」…">
+      </div>
+      <div class="stat" id="toolStat"></div>
+      <div class="menu" id="toolBox" style="max-height:460px"></div>
+    </div>
+
+    <div class="card">
+      <h2><span class="ico">📐</span>本 Demo 与真实链路的对应关系</h2>
+      <div class="sub">演示用的是内置样例数据；接上官方 MCP 后由对应工具提供真实数据</div>
+      <div id="mapBox"></div>
     </div>
   </div>
 
@@ -557,6 +577,67 @@ function planCalorieBudget(budget, strategy, topK=3, tolerance=0.15){
   return results.slice(0, topK);
 }
 
+/* 麦当劳官方 MCP 工具清单（2026-10-09 真实环境 tools/list 实测，共 35 个）
+   group: 分组；write: 是否会产生写操作（下单/领券/抽奖等） */
+const MCP_TOOLS = [
+  {n:"list-nutrition-foods", g:"营养与菜单", w:0, d:"餐品营养信息列表（能量/蛋白质/脂肪/碳水/钠/钙）"},
+  {n:"query-meals", g:"营养与菜单", w:0, d:"查询门店在售餐品菜单，入参 storeCode"},
+  {n:"query-meal-detail", g:"营养与菜单", w:0, d:"餐品详情 / 套餐组成 / 可替换项"},
+
+  {n:"query-nearby-stores", g:"门店与地址", w:0, d:"按城市或关键词查附近可用门店（searchType 必传）"},
+  {n:"delivery-query-addresses", g:"门店与地址", w:0, d:"获取已保存的可配送地址列表"},
+  {n:"delivery-create-address", g:"门店与地址", w:1, d:"新增配送收货地址"},
+  {n:"delivery-query-stores", g:"门店与地址", w:0, d:"按地址查可配送门店"},
+  {n:"query-meal-assistance", g:"门店与地址", w:0, d:"助餐服务查询（仅企业团餐场景）"},
+
+  {n:"query-store-coupons", g:"优惠券与计价", w:0, d:"查询当前门店可用优惠券"},
+  {n:"available-coupons", g:"优惠券与计价", w:0, d:"麦麦省可领取券列表"},
+  {n:"auto-bind-coupons", g:"优惠券与计价", w:1, d:"麦麦省一键领券"},
+  {n:"query-my-coupons", g:"优惠券与计价", w:0, d:"查询账户下的全部优惠券"},
+  {n:"calculate-price", g:"优惠券与计价", w:0, d:"官方价格计算（应付总价，单位：分）—— 计价唯一权威"},
+
+  {n:"create-order", g:"下单与订单", w:1, d:"创建订单并返回支付跳转链接"},
+  {n:"cancel-order", g:"下单与订单", w:1, d:"取消未支付订单"},
+  {n:"query-order", g:"下单与订单", w:0, d:"查询单笔订单状态"},
+  {n:"order-list", g:"下单与订单", w:0, d:"查询历史订单列表"},
+
+  {n:"campaign-calendar", g:"活动与营销", w:0, d:"查询官方活动日历"},
+  {n:"now-time-info", g:"活动与营销", w:0, d:"获取服务端当前时间信息（判断活动是否生效）"},
+  {n:"query-promotions", g:"活动与营销", w:0, d:"查询促销活动（官方文档未列出，实测存在）"},
+
+  {n:"query-my-account", g:"账户与积分", w:0, d:"查询账户信息"},
+
+  {n:"mall-points-products", g:"积分商城", w:0, d:"积分商城商品列表"},
+  {n:"mall-product-detail", g:"积分商城", w:0, d:"积分商品详情"},
+  {n:"mall-create-order", g:"积分商城", w:1, d:"积分商城下单"},
+  {n:"mall-order-list", g:"积分商城", w:0, d:"积分订单列表"},
+  {n:"mall-order-detail", g:"积分商城", w:0, d:"积分订单详情"},
+
+  {n:"query-lottery-info", g:"抽奖与奖品", w:0, d:"查询抽奖活动信息"},
+  {n:"draw-lottery", g:"抽奖与奖品", w:1, d:"执行抽奖"},
+  {n:"query-my-prizes", g:"抽奖与奖品", w:0, d:"查询我的奖品"},
+
+  {n:"query-party-city", g:"派对 / 团餐", w:0, d:"查询开通派对业务的城市"},
+  {n:"query-party-store", g:"派对 / 团餐", w:0, d:"查询可承办派对的门店"},
+  {n:"query-party-store-date", g:"派对 / 团餐", w:0, d:"查询门店可预约日期（官方文档误写为 query-partystore-date）"},
+  {n:"query-party-store-session", g:"派对 / 团餐", w:0, d:"查询门店可预约场次（官方文档误写为 query-partystore-session）"},
+  {n:"party-order-create", g:"派对 / 团餐", w:1, d:"创建派对订单"},
+
+  {n:"query-survey-coupon", g:"优惠券与计价", w:0, d:"问卷发券查询（官方文档未列出，实测存在）"},
+];
+
+/* 本 Demo 功能与官方 MCP 工具的映射 */
+const MCP_MAP = [
+  ["选餐 / 菜品价格", "query-meals", "Demo 用内置 59 款样例菜单代替"],
+  ["营养数据", "list-nutrition-foods", "Demo 用官方公开营养量级数据"],
+  ["券后最优价", "query-store-coupons + query-my-coupons", "Demo 用 9 张样例券"],
+  ["应付总价核对", "calculate-price", "Demo 用本地引擎复算；真实下单前必须以官方结果为准"],
+  ["热量预算配餐", "list-nutrition-foods", "Demo 用样例营养字段做组合搜索"],
+  ["套餐 vs 单点", "query-meal-detail", "Demo 用 6 个样例套餐一口价"],
+  ["门店与地址", "query-nearby-stores / delivery-*", "Demo 未覆盖，需真实门店编码"],
+  ["下单与支付", "create-order", "Demo 不涉及写操作，仅做价格演示"],
+];
+
 /* ==================================================================
    状态与渲染
    ================================================================== */
@@ -793,6 +874,43 @@ function renderBundle(){
 }
 
 /* ==================================================================
+   官方 MCP 工具展示
+   ================================================================== */
+let toolKeyword = "";
+
+function renderTools(){
+  const list = MCP_TOOLS.filter(t =>
+    !toolKeyword || t.n.includes(toolKeyword) || t.d.includes(toolKeyword) || t.g.includes(toolKeyword));
+  const box = document.getElementById("toolBox");
+  if(!list.length){
+    box.innerHTML = `<div class="empty">没有匹配的工具</div>`;
+  } else {
+    box.innerHTML = list.map(t =>
+      `<div class="row" style="align-items:flex-start">
+         <div class="nm" style="flex:1">
+           <code style="font-size:12.5px;color:var(--mcd-red);font-weight:600">${t.n}</code>
+           ${t.w ? `<span class="tag excl" style="margin-left:6px">写操作</span>`
+                 : `<span class="tag stack" style="margin-left:6px">只读</span>`}
+           <small style="margin-top:2px">${t.g} · ${t.d}</small>
+         </div>
+       </div>`).join("");
+  }
+  const writeN = MCP_TOOLS.filter(t=>t.w).length;
+  document.getElementById("toolStat").innerHTML =
+    `实测共 <b>${MCP_TOOLS.length}</b> 个工具 · 只读 <b>${MCP_TOOLS.length-writeN}</b> ·
+     写操作 <b>${writeN}</b> · 当前显示 <b>${list.length}</b>`;
+}
+
+function renderMcpMap(){
+  document.getElementById("mapBox").innerHTML = MCP_MAP.map(([feat, tool, note]) =>
+    `<div class="plan" style="padding:10px 13px">
+       <div style="font-size:13px;font-weight:700;margin-bottom:4px">${feat}</div>
+       <div style="font-size:12px;color:var(--mcd-red);margin-bottom:4px"><code>${tool}</code></div>
+       <div style="font-size:11.5px;color:var(--muted);line-height:1.6">${note}</div>
+     </div>`).join("");
+}
+
+/* ==================================================================
    交互绑定
    ================================================================== */
 document.querySelectorAll(".tabs button").forEach(btn=>{
@@ -802,12 +920,15 @@ document.querySelectorAll(".tabs button").forEach(btn=>{
     document.getElementById("tab-save").style.display = t==="save" ? "grid" : "none";
     document.getElementById("tab-cal").style.display  = t==="cal"  ? "grid" : "none";
     document.getElementById("tab-set").style.display  = t==="set"  ? "grid" : "none";
+    document.getElementById("tab-mcp").style.display  = t==="mcp"  ? "grid" : "none";
     if(t==="cal") renderPlans();
     if(t==="set") renderBundle();
+    if(t==="mcp"){ renderTools(); renderMcpMap(); }
   };
 });
 
 document.getElementById("search").oninput = e=>{ keyword = e.target.value.trim(); renderMenu(); };
+document.getElementById("toolSearch").oninput = e=>{ toolKeyword = e.target.value.trim(); renderTools(); };
 document.getElementById("kcal").oninput = e=>{
   document.getElementById("kcalVal").textContent = e.target.value + " kcal";
   renderPlans();
