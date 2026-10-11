@@ -15,12 +15,17 @@
 
 **布局与交互细节**
 
-- 菜品缩略图是**内联 SVG**（17 个原型 × 每道菜的配色参数），零外部请求、离线可用、不涉及版权素材
+- 菜品缩略图是**内联 SVG**（17 个原型 × 每道菜的配色参数），零外部请求、离线可用、不涉及版权素材；**44/59 道菜有独立外形**，双层汉堡比单层明显更高
 - 每张优惠券都实时标出**「省 ¥x」估值**，并按「同组互斥 / 可叠加 / 已采用」标注，门槛不够时直接提示「还差 ¥x」
+- **「⚡ 一键最优」**遍历所有可用券组合，直接勾出实付最低的那一组
 - **购物车与勾选的券自动存到 localStorage**，刷新不丢；也会过滤掉已下架的餐品 code
 - 点「🔗 分享」把当前方案编码成 URL 哈希（`#c=bigmac.2,corn-cup.1&k=C2,C8`），别人打开即还原你的点餐方案，无需后端
 - 结算区可展开**明细小票**（逐项单价 / 合计 / 优惠 / 应付），所有金额用等宽数字对齐
-- 响应式三档：桌面双列 → 860px 单列 → 640px 手机版（页签横向滚动、工具栏换行、券条目折行）
+- **底部常驻结算条**：购物车非空时滑出，随时看得到「几件 / 原价 / 券后价 / 省多少」
+- **轻提示（toast）**：加购、用券、分享、清空都有即时反馈；**清空带撤销**，误触不丢
+- **键盘快捷键**：`/` 聚焦搜索、`Esc` 清空搜索、`1`–`4` 切换页签（输入框内不拦截）
+- **可访问性**：`:focus-visible` 焦点环、`aria-live` 播报提示、页签/视图按钮带 `role` 与 `aria-*`，并支持 `prefers-reduced-motion`
+- 响应式三档：桌面双列 → 860px 单列 → 640px 手机版（页签横向滚动并带右侧渐隐提示、工具栏换行、券条目折行）
 
 > Demo 的算法与仓库中的 [`scripts/optimizer.py`](scripts/optimizer.py) 完全对齐，一致性由 `docs/verify-demo.js`（28 项断言）自动校验。
 
@@ -188,32 +193,39 @@ mcd-mcmate/
     ├── TEST_REPORT.md        # 真实环境只读实测报告（35 工具 / 文档偏差）
     ├── index.html            # 网页版「麦麦省钱计算器」在线 Demo（纯静态，4 个标签页 + 内联 SVG 缩略图）
     ├── verify-demo.js        # Demo 算法一致性校验（28 项断言，与 optimizer.py 对齐）
-    ├── verify-render.js      # Demo 渲染冒烟 + 缩略图/去重/持久化/分享/一键用券/视图切换校验（26 项，可传文件路径校验线上部署）
+    ├── verify-render.js      # 渲染冒烟 + 缩略图/去重/持久化/分享/一键用券/视图/轻提示/结算条/撤销/快捷键（31 项，可传文件路径校验线上部署）
     ├── verify-layout.sh      # 布局回归：9 个视口组合下检测横向溢出与内容塌陷（需本机 Chrome）
+    ├── verify-mobile.sh      # 真机宽度回归：用 iframe 沙盒在 360/390/414px 下校验（需 Chrome）
     ├── layout-audit.js       # 布局样张生成器（真实渲染函数 + 真实 CSS，产出可离线查看的 HTML）
     ├── snapshot.js           # 按视图批量产出布局样张到 docs/snapshots/
+    ├── contact-sheet.js      # 59 道菜缩略图并排对照表（判断「是否一眼可分」）
     ├── audit.sh              # 单视图截图（产出 PNG，用于肉眼复核）
-    └── test.sh               # 一键跑完全部校验（54 项断言 + 9 项布局检查）
+    └── test.sh               # 一键跑完四段校验（共 75 项检查）
 ```
 
 ### 本地校验 Demo
 
 ```bash
-bash docs/test.sh              # 全量：算法 + 渲染 + 布局（共 63 项检查）
-bash docs/test.sh --no-layout  # 跳过布局回归（不需要 Chrome，更快）
+bash docs/test.sh              # 全量：算法 + 渲染 + 布局 + 真机宽度（共 75 项检查）
+bash docs/test.sh --no-layout  # 跳过需要 Chrome 的两段（更快）
 
 # 也可以直接校验线上部署的副本：
-curl -s https://sanbeitixigua123.github.io/mcd-mcmate/ > /tmp/live.html
+python -c "import urllib.request;open('/tmp/live.html','w',encoding='utf-8').write(urllib.request.urlopen('https://sanbeitixigua123.github.io/mcd-mcmate/').read().decode())"
 node docs/verify-render.js /tmp/live.html
 ```
 
-会依次跑「算法一致性」「渲染冒烟」「布局回归」，全绿即表示 Demo 与 Python 引擎完全对齐、页面无运行时错误、且在 420–1200px 各视口下都不溢出不错位。
+会依次跑「算法一致性」「渲染冒烟」「布局回归」「真机宽度回归」，全绿即表示 Demo 与 Python 引擎完全对齐、页面无运行时错误、且在 360–1200px 各视口下都不溢出不错位。
+
+> ⚠️ 无头 Chrome 会强制最小视口约 512px，所以 `--window-size=390` 实际得到的是 512px。
+> `verify-mobile.sh` 用 **iframe 沙盒**绕开该限制（iframe 拥有独立布局视口，媒体查询按 iframe 宽度求值），
+> 才能真正测到 360/390/414px。
 
 ### 肉眼复核布局
 
 ```bash
 bash docs/audit.sh save-grid 1200   # 网格视图 @1200px → docs/snapshots/*.png
-bash docs/audit.sh save-list 420    # 列表视图 @420px（手机版）
+bash docs/audit.sh save-list 420    # 列表视图（注意：实际渲染为 ~497px，见上）
+node docs/contact-sheet.js          # 59 道菜缩略图对照表
 ```
 
 ---

@@ -25,8 +25,14 @@ function buildPage(view) {
   const nodes = {};
   const mkEl = (id) => nodes[id] || (nodes[id] = {
     id, innerHTML: '', className: '', style: {}, value: '600', textContent: '',
-    dataset: {}, classList: { add() {}, remove() {}, toggle() {} },
-    addEventListener() {}, querySelector: () => null,
+    dataset: {}, classList: { _s: new Set(), add(c){this._s.add(c);}, remove(c){this._s.delete(c);},
+      contains(c){return this._s.has(c);},
+      toggle(c,on){ if(on===undefined){this._s.has(c)?this._s.delete(c):this._s.add(c);} else {on?this._s.add(c):this._s.delete(c);} } },
+    children: [], firstChild: null, parentNode: null,
+    appendChild(c){ this.children.push(c); c.parentNode=this; this.firstChild=this.children[0]; return c; },
+    removeChild(c){ var i=this.children.indexOf(c); if(i>=0){this.children.splice(i,1); c.parentNode=null;} this.firstChild=this.children[0]||null; return c; },
+    setAttribute(){}, getAttribute(){return null;},
+    addEventListener(){}, querySelector: () => null,
   });
   const store = { 'mcmate.demo.v1': JSON.stringify({
     cart: { bigmac: 2, 'fries-m': 1, 'coke-m': 2, 'mcnuggets5': 2 },
@@ -35,7 +41,7 @@ function buildPage(view) {
     console, setTimeout, clearTimeout,
     document: {
       getElementById: mkEl, querySelector: () => null, querySelectorAll: () => [],
-      createElement: () => ({ style: {}, classList: { add() {}, remove() {} }, appendChild() {}, setAttribute() {}, innerHTML: '' }),
+      createElement: () => mkEl('_el'),
       addEventListener() {},
     },
     window: null, location: { hash: '', origin: 'x', pathname: '/' },
@@ -102,7 +108,7 @@ function buildPage(view) {
   }
   // 覆盖自检：静态骨架里作为「数据容器」存在的 div，渲染后不应仍为空。
   // 这类容器一旦漏填，页面上就是一块莫名其妙的空白（曾经真的发生过）。
-  const EMPTY_OK = new Set(['bundleResult', 'toolStat', 'statBox', 'kcalVal']);
+  const EMPTY_OK = new Set(['bundleResult', 'toolStat', 'statBox', 'kcalVal', 'cartBar', 'toastHost']);
   const emptyContainers = containerIds.filter(id => {
     if (EMPTY_OK.has(id)) return false;
     const n = nodes[id];
@@ -110,6 +116,23 @@ function buildPage(view) {
   });
   if (emptyContainers.length && process.env.MCMATE_EMIT_ONLY !== '1') {
     console.error(`⚠ 未渲染出内容的容器: ${emptyContainers.join(', ')}`);
+  }
+
+  // 底部结算条是「纯文本节点 + 类名切换」，不是 innerHTML 回填，单独处理
+  const bar = nodes['cartBar'];
+  if (bar && bar.classList && bar.classList.contains('show')) {
+    body = body.replace(/<div id="cartBar"([^>]*)>/,
+      (m, attrs) => `<div id="cartBar" class="show"${attrs.replace(/aria-hidden="[^"]*"/, 'aria-hidden="false"')}>`);
+    for (const [id, tag] of [['cbQty','b'],['cbOrig','div'],['cbPay','div'],['cbSave','div']]) {
+      const n = nodes[id];
+      if (!n) continue;
+      const v = String(n.textContent == null ? '' : n.textContent);
+      const re = new RegExp(`(<${tag}[^>]*id="${id}"[^>]*>)[\\s\\S]*?(</${tag}>)`);
+      body = body.replace(re, (m2, a, b2) => a + v + b2);
+      if (id === 'cbSave' && n.hidden) {
+        body = body.replace(new RegExp(`(<${tag}[^>]*id="${id}"[^>]*)(>)`), '$1 hidden$2');
+      }
+    }
   }
 
   const tab = view.startsWith('cal') ? 'cal' : view.startsWith('set') ? 'set' : view.startsWith('mcp') ? 'mcp' : 'save';

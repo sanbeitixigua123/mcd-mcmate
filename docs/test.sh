@@ -9,7 +9,7 @@ NODE="${NODE:-C:/Users/wjh/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.e
 SKIP_LAYOUT=0
 [ "${1:-}" = "--no-layout" ] && SKIP_LAYOUT=1
 
-TOTAL=3
+TOTAL=4
 [ "$SKIP_LAYOUT" -eq 1 ] && TOTAL=2
 
 echo "================ 1/$TOTAL 算法一致性 ================"
@@ -22,11 +22,13 @@ echo "================ 2/$TOTAL 渲染冒烟 ================"
 if [ "$SKIP_LAYOUT" -eq 0 ]; then
   echo
   echo "================ 3/$TOTAL 布局回归（需 Chrome） ================"
-  if [ -x "/c/Program Files/Google/Chrome/Application/chrome.exe" ] \
-     || [ -f "/c/Program Files/Google/Chrome/Application/chrome.exe" ]; then
+  if [ -f "/c/Program Files/Google/Chrome/Application/chrome.exe" ]; then
     bash docs/verify-layout.sh
+    echo
+    echo "================ 4/$TOTAL 真机宽度回归（需 Chrome） ================"
+    bash docs/verify-mobile.sh
   else
-    echo "SKIP  未找到 Chrome，跳过布局回归"
+    echo "SKIP  未找到 Chrome，跳过布局与真机宽度回归"
   fi
 fi
 
