@@ -12,23 +12,53 @@ console.log('校验目标:', path.basename(htmlPath) === 'index.html' ? htmlPath
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
 const made = new Map();
+let _seq = 0;
 function mkEl(id) {
   const el = {
-    id, _html: '', textContent: '', value: '600', dataset: {}, style: {}, classList: {
-      add() {}, remove() {}, toggle() {},
+    id, _html: '', _text: '', value: '600', dataset: {}, style: {},
+    // 真实 DOM 会把 textContent 强制转成字符串，桩也要一致，
+    // 否则「写入数字、读出字符串」这类断言会假失败
+    set textContent(v) { this._text = String(v); },
+    get textContent() { return this._text; },
+    // classList 要真的记住状态，否则测不到「结算条滑出」「页签高亮」这类行为
+    classList: {
+      _s: new Set(),
+      add(c) { this._s.add(c); },
+      remove(c) { this._s.delete(c); },
+      contains(c) { return this._s.has(c); },
+      toggle(c, on) {
+        if (on === undefined) { this._s.has(c) ? this._s.delete(c) : this._s.add(c); }
+        else { on ? this._s.add(c) : this._s.delete(c); }
+        return this._s.has(c);
+      },
     },
     set innerHTML(v) { this._html = String(v); },
     get innerHTML() { return this._html; },
+    // 轻提示需要一棵真的能挂/摘的 DOM 子树，否则测不到 toast 的行为
+    children: [], firstChild: null, parentNode: null,
+    appendChild(c) {
+      this.children.push(c);
+      c.parentNode = this;
+      this.firstChild = this.children[0];
+      return c;
+    },
+    removeChild(c) {
+      const i = this.children.indexOf(c);
+      if (i >= 0) { this.children.splice(i, 1); c.parentNode = null; }
+      this.firstChild = this.children[0] || null;
+      return c;
+    },
+    setAttribute() {}, getAttribute() { return null; },
   };
   el.querySelectorAll = () => [];
   el.onclick = null; el.oninput = null; el.onchange = null;
-  made.set(id, el);
+  if (id) made.set(id, el);
   return el;
 }
 ['catBox','statBox','menuBox','couponBox','saveResult','planBox','kcal','kcalVal',
  'bundleCart','bundleResult','bundleBox','menuCount','search','stratBox','tab-save',
  'tab-cal','tab-set','tab-mcp','toolSearch','toolBox','toolStat','mapBox',
- 'vList','vGrid'].forEach(mkEl);
+ 'vList','vGrid','toastHost','cartBar','cbQty','cbOrig','cbPay','cbSave','autoCpBtn'].forEach(mkEl);
 
 /* localStorage 桩：让持久化逻辑在 Node 里也能跑通 */
 const _store = new Map();
@@ -41,9 +71,17 @@ const localStorage = {
 
 const doc = {
   getElementById: id => made.get(id) || mkEl(id),
+  createElement: () => mkEl('_el' + (++_seq)),
+  addEventListener() {},
   querySelectorAll: sel => {
-    // tabs: 3 个按钮；stratBox: 4 个按钮
-    if (sel === '.tabs button') return [0,1,2,3].map(i => mkEl('tabbtn' + i));
+    // tabs: 4 个按钮；stratBox: 4 个按钮
+    if (sel === '.tabs button') {
+      return ['save','cal','set','mcp'].map(t => {
+        const b = mkEl('_tab_' + t);
+        b.dataset = { tab: t };
+        return b;
+      });
+    }
     if (sel === '#stratBox button') return [0,1,2,3].map(i => mkEl('stratbtn' + i));
     return [];
   },
@@ -261,6 +299,123 @@ const muffinOk = vm.runInContext(`
 console.log(muffinOk.muffinHasRect && muffinOk.burgerHasDome
   ? 'PASS  麦满分用扁平松饼顶盖，与圆顶汉堡区分开'
   : `FAIL  麦满分外形未区分: ${JSON.stringify(muffinOk)}`);
+
+// 轻提示：能挂到宿主上、带正确语义、并支持撤销按钮
+const toastT = vm.runInContext(`
+  (function(){
+    var host = document.getElementById('toastHost');
+    host.children.length = 0;
+    toast('测试消息A', 'ok');
+    toast('测试消息B', 'warn', { label: '撤销', run: function(){} });
+    var first = host.children[0], second = host.children[1];
+    return {
+      n: host.children.length,
+      clsA: first ? first.className : '',
+      hasMsg: first ? first.innerHTML.indexOf('测试消息A') >= 0 : false,
+      hasIcon: first ? first.innerHTML.indexOf('t-ico') >= 0 : false,
+      btn: second ? second.children.length : 0,
+      btnLabel: second && second.children[0] ? second.children[0].textContent : '',
+    };
+  })()
+`, sandbox);
+console.log(toastT.n === 2 && /toast/.test(toastT.clsA) && /ok/.test(toastT.clsA)
+    && toastT.hasMsg && toastT.hasIcon && toastT.btn === 1 && toastT.btnLabel === '撤销'
+  ? 'PASS  轻提示可挂载、带语义类名与撤销按钮'
+  : `FAIL  轻提示异常: ${JSON.stringify(toastT)}`);
+
+// 提示数量上限：连发 6 条只保留 3 条，避免刷屏
+const toastCap = vm.runInContext(`
+  (function(){
+    var host = document.getElementById('toastHost');
+    host.children.length = 0;
+    for(var i = 0; i < 6; i++) toast('msg' + i, 'info');
+    return { n: host.children.length };
+  })()
+`, sandbox);
+console.log(toastCap.n === 3
+  ? 'PASS  轻提示最多同时 3 条（超出自动挤掉最早的）'
+  : `FAIL  轻提示未限流: ${JSON.stringify(toastCap)}`);
+
+// 底部结算条：空车隐藏、有货滑出、金额与省钱额与引擎一致
+const barT = vm.runInContext(`
+  (function(){
+    var bar = document.getElementById('cartBar');
+    Object.keys(cart).forEach(function(k){ delete cart[k]; });
+    renderSave();
+    var hiddenWhenEmpty = !bar.classList.contains('show');
+
+    cart['bigmac'] = 2; cart['fries-m'] = 1; cart['coke-m'] = 2;
+    COUPONS.forEach(function(c){ couponState[c.id] = false; });
+    autoPickCoupons();
+    renderSave();
+    return {
+      hiddenWhenEmpty: hiddenWhenEmpty,
+      shown: bar.classList.contains('show'),
+      qty: document.getElementById('cbQty').textContent,
+      pay: document.getElementById('cbPay').textContent,
+      save: document.getElementById('cbSave').textContent,
+      quote: lastQuote ? lastQuote.payable : null,
+    };
+  })()
+`, sandbox);
+const payNum = parseFloat(String(barT.pay).replace(/[^\d.]/g, ''));
+console.log(barT.hiddenWhenEmpty && barT.shown && barT.qty === '5'
+    && barT.quote !== null && Math.abs(payNum - barT.quote) < 0.01
+    && /省 ¥/.test(barT.save)
+  ? `PASS  底部结算条状态正确（${barT.qty} 件 / ${barT.pay} / ${barT.save}）`
+  : `FAIL  结算条异常: ${JSON.stringify(barT)}`);
+
+// 清空可撤销：撤销后购物车应完全还原
+const undoT = vm.runInContext(`
+  (function(){
+    var before = JSON.stringify(cart);
+    clearCartWithUndo();
+    var afterClear = Object.keys(cart).length;
+    var host = document.getElementById('toastHost');
+    var last = host.children[host.children.length - 1];
+    var act = last && last.children[0];
+    var label = act ? act.textContent : '';
+    if(act) act.onclick();          // 点「撤销」
+    return { before: before, afterClear: afterClear, label: label,
+             restored: JSON.stringify(cart) };
+  })()
+`, sandbox);
+console.log(undoT.afterClear === 0 && undoT.label === '撤销' && undoT.restored === undoT.before
+  ? 'PASS  清空可撤销（撤销后购物车逐项还原）'
+  : `FAIL  撤销异常: ${JSON.stringify(undoT)}`);
+
+// 快捷键：/ 聚焦搜索、1-4 切页签、Esc 清空搜索
+const keyT = vm.runInContext(`
+  (function(){
+    var handlers = [];
+    var origAdd = document.addEventListener;
+    document.addEventListener = function(type, fn){ if(type === 'keydown') handlers.push(fn); };
+    initShortcuts();
+    document.addEventListener = origAdd;
+    if(!handlers.length) return { registered: false };
+    var fn = handlers[0];
+    function press(key, target){
+      var prevented = false;
+      fn({ key: key, target: target || { tagName: 'DIV' },
+           preventDefault: function(){ prevented = true; },
+           metaKey: false, ctrlKey: false, altKey: false });
+      return prevented;
+    }
+    // Esc 清空搜索
+    var s = document.getElementById('search');
+    s.value = '巨无霸'; keyword = '巨无霸';
+    press('Escape');
+    var cleared = (s.value === '' && keyword === '');
+    // 输入框内按 1 不应切页签
+    var tabBefore = document.getElementById('tab-cal').style.display;
+    press('1', { tagName: 'INPUT' });
+    var noSwitchInInput = document.getElementById('tab-cal').style.display === tabBefore;
+    return { registered: true, cleared: cleared, noSwitchInInput: noSwitchInInput };
+  })()
+`, sandbox);
+console.log(keyT.registered && keyT.cleared && keyT.noSwitchInInput
+  ? 'PASS  键盘快捷键（Esc 清空搜索；输入框内不误触发）'
+  : `FAIL  快捷键异常: ${JSON.stringify(keyT)}`);
 
 console.log('\n全部渲染检查完成');
 

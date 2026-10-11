@@ -23,8 +23,14 @@ function makeStore() {
   const nodes = {};
   const mkEl = (id) => nodes[id] || (nodes[id] = {
     id, innerHTML: '', className: '', style: {}, value: '', textContent: '',
-    dataset: {}, classList: { add() {}, remove() {}, toggle() {} },
-    addEventListener() {}, querySelector: () => null,
+    dataset: {}, classList: { _s: new Set(), add(c){this._s.add(c);}, remove(c){this._s.delete(c);},
+      contains(c){return this._s.has(c);},
+      toggle(c,on){ if(on===undefined){this._s.has(c)?this._s.delete(c):this._s.add(c);} else {on?this._s.add(c):this._s.delete(c);} } },
+    children: [], firstChild: null, parentNode: null,
+    appendChild(c){ this.children.push(c); c.parentNode=this; this.firstChild=this.children[0]; return c; },
+    removeChild(c){ var i=this.children.indexOf(c); if(i>=0){this.children.splice(i,1); c.parentNode=null;} this.firstChild=this.children[0]||null; return c; },
+    setAttribute(){}, getAttribute(){return null;},
+    addEventListener(){}, querySelector: () => null,
   });
   return { nodes, mkEl };
 }
@@ -35,7 +41,7 @@ function boot(seed) {
     console, setTimeout, clearTimeout,
     document: {
       getElementById: mkEl, querySelector: () => null, querySelectorAll: () => [],
-      createElement: () => ({ style: {}, classList: { add() {}, remove() {} }, appendChild() {}, setAttribute() {}, innerHTML: '' }),
+      createElement: () => mkEl('_el'),
       addEventListener() {},
     },
     window: null,
