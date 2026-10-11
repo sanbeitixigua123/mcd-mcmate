@@ -47,6 +47,15 @@
   }
   .card h2{font-size:16px; margin-bottom:4px; display:flex; align-items:center; gap:8px}
   .card h2 .ico{font-size:18px}
+  /* 卡片标题里的小操作按钮 */
+  .card h2 .mini{
+    margin-left:auto; padding:5px 11px; border-radius:8px; cursor:pointer;
+    border:1px solid #E8CDB4; background:#FFF9F3; color:var(--mcd-red);
+    font-size:12px; font-weight:700; white-space:nowrap; transition:.15s;
+  }
+  .card h2 .mini:hover{background:var(--mcd-red); color:#fff; border-color:var(--mcd-red)}
+  .card h2 .mini:disabled{opacity:.45; cursor:not-allowed; background:#FFF9F3; color:var(--muted); border-color:var(--line)}
+  .card h2 .mini:disabled:hover{background:#FFF9F3; color:var(--muted); border-color:var(--line)}
   .card .sub{font-size:12.5px; color:var(--muted); margin-bottom:14px}
   .toolbar{display:flex; gap:8px; margin-bottom:12px}
   .toolbar input{
@@ -66,7 +75,7 @@
   }
   .cats button.on{background:var(--mcd-dark); color:#fff; border-color:var(--mcd-dark); font-weight:600}
   .cats button:hover:not(.on){border-color:#E0C4A8; color:var(--text)}
-  .menu{display:flex; flex-direction:column; gap:7px; max-height:420px; overflow-y:auto; padding-right:6px}
+  .menu{display:flex; flex-direction:column; gap:7px; max-height:56vh; min-height:260px; overflow-y:auto; padding-right:6px}
   .menu::-webkit-scrollbar{width:6px}
   .menu::-webkit-scrollbar-thumb{background:#E8D9C8; border-radius:3px}
   .row{
@@ -89,18 +98,33 @@
   .row.sel .thumb{border-color:#F0C4A8; background:linear-gradient(160deg,#FFF8F2,#FBEBDF)}
 
   /* 网格视图 */
-  .menu.grid-view{display:grid; grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); gap:10px; max-height:520px}
+  .menu.grid-view{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr));
+    gap:10px; max-height:56vh; align-content:start;
+  }
   .gcard{
-    border:1px solid var(--line); border-radius:14px; background:#FFFDFA; padding:10px;
-    text-align:center; transition:.15s; display:flex; flex-direction:column;
+    border:1px solid var(--line); border-radius:14px; background:#FFFDFA; padding:11px 9px 9px;
+    text-align:center; transition:.15s;
+    display:grid; grid-template-rows:auto auto auto auto auto;
+    align-content:start; justify-items:center; row-gap:0;
+    min-width:0; overflow:hidden;
   }
   .gcard:hover{border-color:#E8CDB4; box-shadow:0 3px 12px rgba(120,80,40,.07)}
   .gcard.sel{background:#FFF6F0; border-color:#F0C4A8}
-  .gcard .thumb{width:74px; height:74px; margin:0 auto; border-radius:12px}
-  .gcard .gn{font-size:12.5px; margin-top:7px; line-height:1.35; min-height:34px}
-  .gcard .gk{font-size:10.5px; color:var(--muted); margin-bottom:6px}
+  .gcard .thumb{width:68px; height:68px; margin:0 auto; border-radius:12px}
+  /* 菜名最多两行，超出省略 —— 修掉「一字一行」的竖排塌陷 */
+  .gcard .gn{
+    font-size:12.5px; margin-top:7px; line-height:1.35;
+    width:100%; min-width:0;
+    display:-webkit-box; -webkit-line-clamp:2; line-clamp:2;
+    -webkit-box-orient:vertical; overflow:hidden;
+    word-break:break-word;
+  }
+  .gcard .gk{font-size:10.5px; color:var(--muted); margin-bottom:5px}
   .gcard .gp{font-size:13px; font-weight:800; color:var(--mcd-red); margin-bottom:7px}
-  .gcard .stepper{justify-content:center}
+  .gcard .stepper{justify-content:center; margin-top:auto}
+  /* 数字列采用等宽数字，避免价格跳动 */
+  .gcard .gp, .row .nm small, .plan .hd .p, .bill .pay, .rl .rv{font-variant-numeric:tabular-nums}
   .viewbtn{display:flex; gap:4px; border:1px solid var(--line); border-radius:10px; overflow:hidden}
   .viewbtn button{
     padding:9px 11px; border:0; background:#fff; font-size:14px; cursor:pointer;
@@ -129,17 +153,39 @@
   .stepper button:hover{background:var(--mcd-red); color:#fff; border-color:var(--mcd-red)}
   .stepper button:disabled{opacity:.3; cursor:not-allowed; background:#fff; color:var(--muted); border-color:var(--line)}
   .stepper .q{min-width:18px; text-align:center; font-size:13px; font-weight:700}
-  .coupons{display:flex; flex-direction:column; gap:7px; max-height:210px; overflow-y:auto; padding-right:4px}
+  /* 券列表：高度自适应，最多 9 张券一次看完，不再把卡片从中间切断 */
+  .coupons{
+    display:flex; flex-direction:column; gap:7px;
+    max-height:none; overflow:visible; padding-right:0;
+  }
+  /* 券条目滚动条（仅在极窄屏才出现） */
+  .coupons::-webkit-scrollbar{width:6px}
+  .coupons::-webkit-scrollbar-thumb{background:#E8D9C8; border-radius:3px}
   .cp{
     display:flex; align-items:center; gap:10px; padding:9px 12px;
     border:1px dashed #E2C9A8; border-radius:10px; background:#FFFCF5;
     font-size:13px; cursor:pointer; transition:.15s;
   }
   .cp:hover{background:#FFF7E8}
+  .cp-off{opacity:.6}
+  .cp-on{border-style:solid; border-color:#E8B98A; background:#FFF7EC}
   .cp input{width:16px; height:16px; accent-color:var(--mcd-red); cursor:pointer; flex-shrink:0}
+  /* 三栏：说明 / 省钱额 / 标签，标签列固定宽度以便纵向对齐 */
+  .cp .cn-body{flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.3}
+  .cp .cn-name{font-weight:600}
+  .cp .cn-sub{font-size:11.5px; color:var(--muted)}
+  .cp .cn-sub .cn-note,
+  .cp .cn-note{color:#B08050; font-style:normal}
+  .cp .cn-tail{display:flex; align-items:center; gap:5px; flex-shrink:0}
+  .cp .cn-save{
+    font-size:12px; font-weight:800; color:var(--green);
+    background:#E7F6ED; border-radius:7px; padding:2px 7px; white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
   .cp .tag{font-size:10.5px; padding:1px 7px; border-radius:6px; font-weight:700; white-space:nowrap}
   .cp .tag.stack{background:#D9F2E3; color:#146B3C}
   .cp .tag.excl{background:#FDDFDC; color:#A32214}
+  .cp .tag.used{background:#FDE7C8; color:#8A5A00}
   .result{margin-top:18px; border-top:1px dashed var(--line); padding-top:16px}
   .bill{
     display:flex; align-items:baseline; justify-content:space-between;
@@ -211,6 +257,55 @@
   .tabs button.on{background:var(--mcd-dark); color:#fff; border-color:var(--mcd-dark); font-weight:700}
   .stat{font-size:11.5px; color:var(--muted); margin-bottom:8px}
   .stat b{color:var(--mcd-red)}
+
+  /* ==============================================================
+     响应式：860px 以下单列，640px 以下进入「手机版」紧凑布局
+     ============================================================== */
+  @media(max-width:860px){
+    .grid{grid-template-columns:1fr; gap:16px}
+    .wrap{padding:0 14px}
+    .card{padding:18px 16px}
+    /* 单列时菜单仍限高：否则 59 道菜会把「优惠券」面板顶到几千像素之外。
+       同时用 overscroll-behavior 阻止内部滚动链到整页，避免「滑不动」的错觉。 */
+    .menu{max-height:58vh; overscroll-behavior:contain}
+    .menu.grid-view{max-height:58vh; grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
+    .gcard .thumb{width:60px; height:60px}
+    header{padding:30px 18px 28px}
+    header h1{font-size:22px}
+  }
+  @media(max-width:640px){
+    /* 页签：横向滚动而不是挤压换行，保证每个都能完整点中 */
+    .tabs{
+      gap:6px; margin-bottom:14px;
+      overflow-x:auto; -webkit-overflow-scrolling:touch;
+      scrollbar-width:none; padding-bottom:2px;
+    }
+    .tabs::-webkit-scrollbar{display:none}
+    .tabs button{flex:0 0 auto; padding:8px 13px; font-size:12.5px; white-space:nowrap}
+    /* 工具栏：搜索独占一行，其余按钮平分第二行 */
+    .toolbar{flex-wrap:wrap}
+    .toolbar input{flex:1 1 100%}
+    .toolbar .viewbtn{flex:0 0 auto}
+    .toolbar button{flex:1 1 auto}
+    /* 券条目：省钱额换到第二行，避免右侧被挤成竖排 */
+    .cp{flex-wrap:wrap; row-gap:6px}
+    .cp .cn-body{flex:1 1 100%; order:2}
+    .cp .cn-tail{order:3; width:100%; justify-content:flex-start}
+    .cp input{order:1}
+    .cp{display:grid; grid-template-columns:auto 1fr; gap:6px 10px}
+    .cp input{grid-row:1; grid-column:1}
+    .cp .cn-body{grid-row:1; grid-column:2}
+    .cp .cn-tail{grid-row:2; grid-column:1 / -1}
+    /* 方案里的餐品块改为整行，缩略图与文字不再挤在一起 */
+    .plan .items{gap:6px}
+    .plan .itm{flex:1 1 100%}
+    /* 账单：大数字不再挤压标签 */
+    .bill{padding:12px 13px}
+    .bill .pay{font-size:23px}
+    .calset .val{min-width:64px; font-size:15px}
+    .foot{margin-top:26px}
+    .snapnote{margin:12px 14px 0}
+  }
 </style>
 </head>
 <body>
@@ -249,8 +344,10 @@
     </div>
 
     <div class="card">
-      <h2><span class="ico">🏷️</span>可用优惠券</h2>
-      <div class="sub">同组互斥（如满减/折扣），无分组的券可自由叠加</div>
+      <h2><span class="ico">🏷️</span>可用优惠券
+        <button class="mini" id="autoCpBtn" onclick="autoPickCoupons()" title="让引擎把最省钱的券自动勾上">⚡ 一键最优</button>
+      </h2>
+      <div class="sub">同组互斥（如满减/折扣），无分组的券可自由叠加；右侧「省 ¥」是按当前购物车单张估算</div>
       <div class="coupons" id="couponBox"></div>
       <div class="result" id="saveResult"></div>
     </div>
@@ -413,24 +510,77 @@ const MENU = [
    做法：17 个「原型」形状 + 每道菜的配色参数 → 每道菜都有独特缩略图
    ================================================================== */
 
-/* 原型 1：汉堡 / 三明治 */
+/* 原型 1：汉堡 / 三明治
+   分层组装 + 整体缩放：无论夹几层（双层吉士 / 巨无霸的双肉饼），
+   都自动压进固定高度，避免不同菜品忽高忽低、破坏列表的视觉节奏。
+   可辨识特征：芝麻顶盖、波浪生菜、挂角芝士、双肉饼、煎蛋、培根。 */
 function svgBurger(o){
   o = o || {};
   const bun = o.bun || "#E8A54B", top = o.top || "#F0B95E";
   const patty = o.patty || "#7B4423", cheese = o.cheese || "#FFC72C";
-  const veg = o.veg || "#5DA33F";
+  const veg = o.veg === undefined ? "#5DA33F" : o.veg;
+  const pattyH = o.pattyH || 9;
+  const nP = o.patties || 1;
+
+  // 每层：高度 h + 以 y 为顶边的绘制函数
   const layers = [];
-  let y = 30;
-  if(o.veg !== null) layers.push(`<rect x="16" y="${y}" width="48" height="5" rx="2.5" fill="${veg}"/>`), y += 6;
-  if(o.cheese !== null) layers.push(`<rect x="14" y="${y}" width="52" height="5" rx="2" fill="${cheese}"/>`), y += 6;
-  layers.push(`<rect x="13" y="${y}" width="54" height="${o.pattyH||9}" rx="4" fill="${patty}"/>`); y += (o.pattyH||9) + 2;
-  if(o.egg) layers.push(`<rect x="13" y="${y}" width="54" height="6" rx="3" fill="#FFF3C4"/>`), y += 8;
-  if(o.bacon) layers.push(`<rect x="14" y="${y}" width="52" height="4" rx="2" fill="#C0472B"/>`), y += 5;
+  const L = (h, fn) => layers.push({ h, fn });
+
+  if(veg) L(6, y => `<path d="M15 ${y+2} q6 -4 12 0 t12 0 t12 0 t12 0 v4 h-48 z" fill="${veg}"/>`);
+  if(cheese !== null) L(5, y =>
+    `<path d="M14 ${y} h52 v3 q-6 5 -13 0 t-13 0 t-13 0 t-13 0 z" fill="${cheese}"/>`);
+  for(let k = 0; k < nP; k++){
+    L(pattyH, y => `<rect x="13" y="${y}" width="54" height="${pattyH}" rx="4" fill="${patty}"/>` +
+      `<rect x="13" y="${y}" width="54" height="${Math.max(2, pattyH*0.28)}" rx="2" fill="#000" opacity=".08"/>` +
+      // 板烧的「烤痕」：斜向焦线，是板烧鸡腿堡独有的外形特征
+      (o.grill
+        ? [0, 1, 2, 3, 4].map(i =>
+            `<rect x="${17 + i * 11}" y="${y + 0.5}" width="3.2" height="${pattyH - 1}" rx="1.6"` +
+            ` fill="#000" opacity=".22" transform="rotate(14 ${17 + i * 11} ${y + pattyH / 2})"/>`).join("")
+        : ""));
+    if(k < nP - 1 && cheese !== null)
+      L(5, y => `<rect x="14" y="${y}" width="52" height="5" rx="2" fill="${cheese}"/>`);
+  }
+  // 酱汁层：让「麦香鸡 / 麦辣」这类靠酱区分的汉堡有可辨的夹层
+  if(o.sauce) L(4, y => `<path d="M15 ${y+1} q8 3 16 0 t16 0 t16 0 v3 h-48 z" fill="${o.sauce}"/>`);
+  if(o.egg) L(7, y =>
+    `<ellipse cx="40" cy="${y+4}" rx="27" ry="4.5" fill="#FFF6D8"/>` +
+    `<circle cx="40" cy="${y+4}" r="3.6" fill="#FFC72C"/>`);
+  if(o.bacon) L(5, y =>
+    `<path d="M14 ${y+1} q7 4 14 0 t14 0 t14 0 v3 q-7 4 -14 0 t-14 0 t-14 0 z" fill="#C0472B"/>`);
+
+  const rawH = layers.reduce((s, l) => s + l.h, 0) + Math.max(0, layers.length - 1);
+  // 夹层高度预算：单层汉堡约 22px，双层能到 28px —— 留出差异，让「双层」一眼看得出更高。
+  // 上限 28 是算过的：顶盖底边 34 + 28 + 底盖 13 + 留白 ≤ 80。
+  const BUDGET = 28;
+  const k = rawH > BUDGET ? BUDGET / rawH : 1;
+  const stackH = rawH * k;
+
+  let y = 0;
+  const body = layers.map(l => { const s = l.fn(y); y += l.h + 1; return s; }).join("");
+
+  // 芝麻只画在顶盖上，位置固定（不随夹层变化）
+  const seeds = o.seeds === false ? "" :
+    [[28,25],[40,21],[52,25],[34,30],[46,30],[22,30],[58,30]]
+      .map(([x, sy]) =>
+        `<ellipse cx="${x}" cy="${sy}" rx="1.7" ry="1.1" fill="#FFF0CC" opacity=".92"` +
+        ` transform="rotate(${((x-40)*1.3).toFixed(1)} ${x} ${sy})"/>`).join("");
+
+  const bottomTop = 34 + stackH;
+  // 麦满分用的是英式松饼：没有圆顶，改成扁平的圆角矩形 + 边缘颗粒感
+  const crown = o.muffin
+    ? `<rect x="11" y="18" width="58" height="16" rx="5" fill="${top}"/>` +
+      `<path d="M11 26 h58" stroke="${bun}" stroke-width="2" opacity=".55"/>` +
+      [[16, 21], [30, 19.5], [46, 19.5], [62, 21], [22, 30], [40, 30.5], [56, 30]]
+        .map(([x, sy]) => `<circle cx="${x}" cy="${sy}" r="1.3" fill="#E8D3A8" opacity=".85"/>`).join("")
+    : `<path d="M9 34 Q40 3 71 34 Z" fill="${top}"/>` +
+      `<path d="M9 34 Q40 39 71 34 Q40 37 9 34 Z" fill="${bun}" opacity=".5"/>` +
+      seeds;
   return `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <path d="M10 34 Q40 4 70 34 Z" fill="${top}"/>
-    <path d="M10 34 Q40 40 70 34 L70 34 Q40 38 10 34 Z" fill="${bun}" opacity=".55"/>
-    ${layers.join("")}
-    <path d="M12 62 Q40 76 68 62 Q68 54 60 54 L20 54 Q12 54 12 62 Z" fill="${bun}"/>
+    ${crown}
+    <g transform="translate(0 34) scale(1 ${k.toFixed(4)})">${body}</g>
+    <path d="M12 ${bottomTop} Q40 ${bottomTop+14} 68 ${bottomTop} Q68 ${bottomTop-7} 60 ${bottomTop-7} L20 ${bottomTop-7} Q12 ${bottomTop-7} 12 ${bottomTop} Z" fill="${bun}"/>
+    <path d="M12 ${bottomTop} h56 v2.2 q-28 6.5 -56 0 z" fill="#000" opacity=".07"/>
   </svg>`;
 }
 
@@ -507,14 +657,43 @@ function svgCup(o){
   const body = o.body || "#F5F5F5", liquid = o.liquid || "#3A2418";
   const lid = o.lid || "#DA291C", stripe = o.stripe || null;
   const showLiquid = o.liquid !== null;
-  const stripeEl = stripe ? `<rect x="22" y="44" width="36" height="5" fill="${stripe}" opacity=".85"/>` : "";
+  // 尺寸档位：小 / 中 / 大 —— 用杯口半宽与杯身高度体现，让小杯大杯一眼可分
+  const SZ = { s: { tw: 15, h: 38 }, m: { tw: 18, h: 46 }, l: { tw: 21, h: 52 } };
+  const z = SZ[o.size] || SZ.m;
+  const cx = 40, topY = 24, tw = z.tw, bw = tw - 4, botY = topY + z.h;
+  const lx = cx - tw, rx = cx + tw, blx = cx - bw, brx = cx + bw;
+  const cupPath = `M${lx} ${topY} L${rx} ${topY} L${brx} ${botY - 5} Q${cx} ${botY} ${blx} ${botY - 5} Z`;
+  const liquidPath = `M${lx + 1.5} ${topY + 10} L${rx - 1.5} ${topY + 10} L${brx - 1.2} ${botY - 5.5} Q${cx} ${botY - 1.5} ${blx + 1.2} ${botY - 5.5} Z`;
+  const stripeEl = stripe
+    ? `<rect x="${lx + 1}" y="${topY + 20}" width="${tw * 2 - 2}" height="5" fill="${stripe}" opacity=".85"/>` : "";
+  // 珍珠：沉在杯底，两三排错开
+  const pearls = o.pearls ? (() => {
+    const out = [];
+    for (let r = 0; r < 3; r++) {
+      const n = 5 - r;
+      for (let i = 0; i < n; i++) {
+        const px = cx - (n - 1) * 2.6 + i * 5.2;
+        const py = botY - 8 - r * 4.6;
+        out.push(`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.1" fill="#4A3524" opacity=".85"/>`);
+      }
+    }
+    return out.join("");
+  })() : "";
+  // 冰块：液体里漂几块半透明方块
+  const ice = o.ice ? [[-9, 16], [4, 22], [-3, 29], [9, 33]]
+    .map(([dx, dy]) =>
+      `<rect x="${cx + dx - 3.5}" y="${topY + dy}" width="7" height="7" rx="1.5"` +
+      ` fill="#FFFFFF" opacity=".34" transform="rotate(${dx * 3} ${cx + dx} ${topY + dy + 3.5})"/>`)
+    .join("") : "";
   return `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <path d="M22 24 L58 24 L54 70 Q40 74 26 70 Z" fill="${body}"/>
-    ${showLiquid ? `<path d="M23.5 34 L56.5 34 L53.4 68.5 Q40 72 26.6 68.5 Z" fill="${liquid}" opacity=".92"/>` : ""}
+    <path d="${cupPath}" fill="${body}"/>
+    ${showLiquid ? `<path d="${liquidPath}" fill="${liquid}" opacity=".92"/>` : ""}
+    ${ice}
     ${stripeEl}
-    <rect x="20" y="19" width="40" height="6" rx="3" fill="${lid}"/>
-    ${o.straw ? `<rect x="44" y="6" width="5" height="20" rx="2.5" fill="${o.straw}" transform="rotate(12 46 16)"/>` : ""}
-    ${o.dome ? `<path d="M22 22 Q40 6 58 22 Z" fill="#EDEDED" opacity=".9"/>` : ""}
+    ${pearls}
+    <rect x="${lx - 2}" y="${topY - 5}" width="${tw * 2 + 4}" height="6" rx="3" fill="${lid}"/>
+    ${o.straw ? `<rect x="${cx + 4}" y="${topY - 18}" width="5" height="20" rx="2.5" fill="${o.straw}" transform="rotate(12 ${cx + 6} ${topY - 8})"/>` : ""}
+    ${o.dome ? `<path d="M${lx} ${topY - 2} Q${cx} ${topY - 18} ${rx} ${topY - 2} Z" fill="#EDEDED" opacity=".9"/>` : ""}
   </svg>`;
 }
 
@@ -579,12 +758,42 @@ function svgBlizzard(o){
 function svgCoffee(o){
   o = o || {};
   const cup = o.cup || "#F7F3EE", foam = o.foam || "#C69B6D", lid = o.lid || "#5A3A22";
+  // 热饮尺寸档位，与冷饮杯一致（小 / 中 / 大）
+  const SZ = { s: { tw: 14, h: 36 }, m: { tw: 16, h: 42 }, l: { tw: 18, h: 47 } };
+  const z = SZ[o.size] || SZ.m;
+  const cx = 40, topY = 26, tw = z.tw, bw = tw - 3, botY = topY + z.h;
+  const lx = cx - tw, rx = cx + tw, blx = cx - bw, brx = cx + bw;
+  const cupPath = `M${lx} ${topY} L${rx} ${topY} L${brx} ${botY - 5} Q${cx} ${botY} ${blx} ${botY - 5} Z`;
+  const foamPath = `M${lx + 1.5} ${topY + 8} L${rx - 1.5} ${topY + 8} L${brx - 1.2} ${botY - 5.5} Q${cx} ${botY - 1.5} ${blx + 1.2} ${botY - 5.5} Z`;
+  // 拿铁拉花：奶泡上的心形纹路，和纯美式的深色液面形成对比
+  const latte = o.latte
+    ? `<ellipse cx="${cx}" cy="${topY + 8}" rx="${tw - 3}" ry="5" fill="#FFF6E8" opacity=".95"/>` +
+      `<path d="M${cx} ${topY + 4} q-7 4 0 8 q7 -4 0 -8 Z" fill="${foam}" opacity=".85"/>`
+    : "";
+  // 卡布奇诺：更厚的奶泡堆（高出杯口）
+  const foamMound = o.foamMound
+    ? `<path d="M${lx + 2} ${topY + 2} Q${cx} ${topY - 9} ${rx - 2} ${topY + 2} Z" fill="#FFF3E0"/>`
+    : "";
+  // 摩卡：挤一坨奶油
+  const whip = o.whip
+    ? `<path d="M${cx - 12} ${topY + 1} q4 -9 12 -9 q8 0 12 9 z" fill="#FFFBF4"/>` +
+      `<circle cx="${cx}" cy="${topY - 8}" r="4" fill="#FFFBF4"/>` +
+      `<circle cx="${cx - 7}" cy="${topY - 4}" r="3" fill="#FFFBF4"/>` +
+      `<circle cx="${cx + 7}" cy="${topY - 4}" r="3" fill="#FFFBF4"/>`
+    : "";
+  // 焦糖玛奇朵：表面淋酱的网格纹
+  const drizzle = o.drizzle
+    ? [0, 1, 2, 3].map(i =>
+        `<path d="M${lx + 3} ${topY + 3 + i * 3.4} q${tw} 3 ${tw * 2 - 6} 0" stroke="${o.drizzle}"` +
+        ` stroke-width="1.6" fill="none" opacity=".9"/>`).join("")
+    : "";
   return `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <path d="M24 26 L56 26 L52 68 Q40 72 28 68 Z" fill="${cup}"/>
-    <path d="M25.5 34 L54.5 34 L51.4 67 Q40 70.5 28.6 67 Z" fill="${foam}" opacity=".92"/>
-    <rect x="22" y="20" width="36" height="7" rx="3.5" fill="${lid}"/>
-    <rect x="33" y="12" width="14" height="4" rx="2" fill="${lid}" opacity=".8"/>
-    ${o.sleeve ? `<rect x="24" y="42" width="32" height="14" fill="${o.sleeve}" opacity=".9"/>` : ""}
+    <path d="${cupPath}" fill="${cup}"/>
+    <path d="${foamPath}" fill="${foam}" opacity=".92"/>
+    ${latte}${foamMound}${whip}${drizzle}
+    <rect x="${lx - 2}" y="${topY - 6}" width="${tw * 2 + 4}" height="7" rx="3.5" fill="${lid}"/>
+    <rect x="${cx - 7}" y="${topY - 14}" width="14" height="4" rx="2" fill="${lid}" opacity=".8"/>
+    ${o.sleeve ? `<rect x="${lx}" y="${topY + 18}" width="${tw * 2}" height="14" fill="${o.sleeve}" opacity=".9"/>` : ""}
   </svg>`;
 }
 
@@ -684,19 +893,19 @@ function svgPancake(o){
 
 /* ---- 每道菜的缩略图参数（code → 生成器 + 配色） ---- */
 const ART = {
-  /* 汉堡类 */
-  hamburger:   () => svgBurger({ cheese: null, pattyH: 8, veg: null }),
-  cheeseburger:() => svgBurger({ pattyH: 8 }),
-  dblcheese:   () => svgBurger({ pattyH: 14 }),
-  mchicken:    () => svgBurger({ patty: "#C98B36", cheese: "#FFC72C", veg: "#D6453A" }),
-  bigmac:      () => svgBurger({ pattyH: 12, veg: "#5DA33F" }),
-  filet:       () => svgBurger({ patty: "#F2D48A", pattyH: 10, cheese: "#FFC72C", veg: "#E8E8E8" }),
-  mcchicken:   () => svgBurger({ patty: "#D9A24E", veg: "#7BC062" }),
-  gcb:         () => svgBurger({ patty: "#B5762E", cheese: "#FFC72C", veg: "#8CC63F" }),
-  "spicy-gcb": () => svgBurger({ patty: "#B5762E", cheese: "#FFC72C", veg: "#D6453A" }),
-  angus:       () => svgBurger({ patty: "#6B3A1E", pattyH: 13, cheese: "#FFC72C", veg: "#5DA33F" }),
-  "bacon-angus":() => svgBurger({ patty: "#6B3A1E", pattyH: 13, cheese: "#FFC72C", veg: "#5DA33F", bacon: true }),
-  "double-mchk":() => svgBurger({ patty: "#C98B36", pattyH: 16, cheese: "#FFC72C", veg: "#D6453A" }),
+  /* 汉堡类 —— 靠「芝麻顶盖 / 肉饼层数 / 酱色 / 生菜色」区分，避免 12 个汉堡长得一样 */
+  hamburger:   () => svgBurger({ cheese: null, pattyH: 8, veg: null, seeds: false }),
+  cheeseburger:() => svgBurger({ pattyH: 8, veg: null, seeds: false }),
+  dblcheese:   () => svgBurger({ patties: 2, pattyH: 9, veg: null, seeds: false }),
+  mchicken:    () => svgBurger({ patty: "#D9A24E", pattyH: 9, cheese: null, veg: "#7BC062", seeds: false, sauce: "#FFF6E4" }),
+  bigmac:      () => svgBurger({ patties: 2, pattyH: 9, veg: "#5DA33F", sauce: "#FFF3D6" }),
+  filet:       () => svgBurger({ patty: "#F2D48A", pattyH: 10, veg: null, seeds: false }),
+  mcchicken:   () => svgBurger({ patty: "#C98B36", pattyH: 10, veg: "#D6453A", sauce: "#FFF3D6" }),
+  gcb:         () => svgBurger({ patty: "#B5762E", pattyH: 10, veg: "#8CC63F", grill: true }),
+  "spicy-gcb": () => svgBurger({ patty: "#B5762E", pattyH: 10, veg: "#D6453A", grill: true, sauce: "#E05A3C" }),
+  angus:       () => svgBurger({ patty: "#6B3A1E", pattyH: 12, veg: "#5DA33F" }),
+  "bacon-angus":() => svgBurger({ patty: "#6B3A1E", pattyH: 12, veg: "#5DA33F", bacon: true }),
+  "double-mchk":() => svgBurger({ patty: "#C98B36", patties: 2, pattyH: 9, veg: "#D6453A", sauce: "#E05A3C" }),
 
   /* 卷类 */
   twister:     () => svgWrap({ fill: "#B5762E", veg: "#7BC062" }),
@@ -727,32 +936,32 @@ const ART = {
   "mcflurry-mango":() => svgBlizzard({ chip: "#F0A93B", ice: "#FFF6E0" }),
   "sundae-choco":() => svgSundae({ ice: "#F5E3CE", top: "#7B4423" }),
 
-  /* 饮品 —— 碳酸 */
-  "coke-s":    () => svgCup({ liquid: "#2A1A12", lid: "#DA291C", straw: "#DA291C", stripe: "#DA291C" }),
+  /* 饮品 —— 碳酸（杯 + 吸管 + 品牌色盖） */
+  "coke-s":    () => svgCup({ liquid: "#2A1A12", lid: "#DA291C", straw: "#DA291C", stripe: "#DA291C", size: "s" }),
   "coke-m":    () => svgCup({ liquid: "#2A1A12", lid: "#DA291C", straw: "#DA291C", stripe: "#DA291C" }),
-  "coke-l":    () => svgCup({ liquid: "#2A1A12", lid: "#C41E14", straw: "#C41E14", stripe: "#C41E14" }),
+  "coke-l":    () => svgCup({ liquid: "#2A1A12", lid: "#C41E14", straw: "#C41E14", stripe: "#C41E14", size: "l" }),
   "coke-zero-m":() => svgCup({ liquid: "#1A1A1A", lid: "#2B2B2B", straw: "#2B2B2B", stripe: "#2B2B2B" }),
   "sprite-m":  () => svgCup({ liquid: "#C9E9B8", lid: "#1F9254", straw: "#1F9254", stripe: "#1F9254" }),
   "fanta-m":   () => svgCup({ liquid: "#F5A623", lid: "#E86A17", straw: "#E86A17", stripe: "#E86A17" }),
   "soda-water":() => svgCup({ liquid: "#E4F2F7", lid: "#7FB6CC", straw: "#7FB6CC" }),
 
-  /* 饮品 —— 咖啡 / 茶 / 其他 */
-  "americano-m":() => svgCoffee({ foam: "#4A2A16", lid: "#5A3A22" }),
-  "americano-l":() => svgCoffee({ foam: "#4A2A16", lid: "#5A3A22" }),
-  "latte-m":   () => svgCoffee({ foam: "#D9B382", lid: "#8A5A2B", sleeve: "#E8D9C8" }),
-  cappuccino:  () => svgCoffee({ foam: "#E8D3B0", lid: "#8A5A2B", sleeve: "#E8D9C8" }),
-  "mocha-m":   () => svgCoffee({ foam: "#6B3A1E", lid: "#4A2A16", sleeve: "#D8C4AC" }),
-  "caramel-mac":() => svgCoffee({ foam: "#C98B36", lid: "#8A5A2B", sleeve: "#E8D9C8" }),
-  "milk-tea":  () => svgCup({ body: "#F5E6D3", liquid: "#C9A06B", lid: "#8A5A2B", straw: "#8A5A2B" }),
-  "iced-tea":  () => svgCup({ body: "#F5E6D3", liquid: "#C87F2B", lid: "#E8A93B", straw: "#E8A93B" }),
+  /* 饮品 —— 咖啡（热杯 + 杯盖 + 杯套，无吸管） */
+  "americano-m":() => svgCoffee({ foam: "#4A2A16", lid: "#5A3A22", size: "s" }),
+  "americano-l":() => svgCoffee({ foam: "#4A2A16", lid: "#5A3A22", size: "l" }),
+  "latte-m":   () => svgCoffee({ foam: "#D9B382", lid: "#8A5A2B", sleeve: "#E8D9C8", latte: true }),
+  cappuccino:  () => svgCoffee({ foam: "#E8D3B0", lid: "#8A5A2B", sleeve: "#E8D9C8", foamMound: true }),
+  "mocha-m":   () => svgCoffee({ foam: "#6B3A1E", lid: "#4A2A16", sleeve: "#D8C4AC", whip: true }),
+  "caramel-mac":() => svgCoffee({ foam: "#C98B36", lid: "#8A5A2B", sleeve: "#E8D9C8", drizzle: "#8A5A2B" }),
+  "milk-tea":  () => svgCup({ body: "#F5E6D3", liquid: "#C9A06B", lid: "#8A5A2B", straw: "#8A5A2B", pearls: true }),
+  "iced-tea":  () => svgCup({ body: "#F5E6D3", liquid: "#C87F2B", lid: "#E8A93B", straw: "#E8A93B", ice: true }),
   "ceylon-tea":() => svgCup({ body: "#F5E6D3", liquid: "#A9622A", lid: "#7B4423", straw: "#7B4423" }),
   "orange-juice":() => svgDrinkCarton({ accent: "#F0A93B", liquid: "#F5A623" }),
   milk:        () => svgDrinkCarton({ accent: "#3B7DD8", liquid: "#F7F7F7", body: "#FFFFFF" }),
   "soy-milk":  () => svgDrinkCarton({ accent: "#C9A66B", liquid: "#F0E4CC", body: "#FFFFFF" }),
 
   /* 早餐 */
-  "egg-mcmuffin":() => svgBurger({ pattyH: 8, egg: true, cheese: "#FFC72C", veg: null }),
-  "sausage-mcm":() => svgBurger({ pattyH: 9, cheese: "#FFC72C", veg: null }),
+  "egg-mcmuffin":() => svgBurger({ patty: "#A0572B", pattyH: 8, egg: true, veg: null, seeds: false, muffin: true }),
+  "sausage-mcm":() => svgBurger({ patty: "#A0572B", pattyH: 8, veg: null, seeds: false, muffin: true }),
   hotcakes:    () => svgPancake({}),
   "breakfast-burrito":() => svgWrap({ fill: "#D9A24E", veg: "#F2D48A", shell: "#E8CFA0" }),
   hashbrown:   () => svgPattySquare({}),
@@ -1177,21 +1386,59 @@ function renderCoupons(){
                 : c.kind==="discount"    ? `打 ${(10-c.value*10).toFixed(1)} 折`
                 : c.kind==="second_half" ? `第 2 份半价`
                 : `单品压到 ¥${c.value}`;
+  const codes = Object.keys(cart).map(k=>({code:k, price:0, qty:cart[k]}));
   const cartCodes = Object.keys(cart);
+  // 该券「单独使用」能省多少 —— 让用户一眼看出哪张券值钱，而不是只看到一个抽象名称
+  const soloWorth = c => {
+    if(!cartCodes.length) return 0;
+    const lines = cartCodes.map(k=>{
+      const it = MENU.find(m=>m.code===k);
+      return it ? {code:it.code, price:it.price, qty:cart[k]} : null;
+    }).filter(Boolean);
+    if(!lines.length) return 0;
+    const base = lines.reduce((s,l)=>s + l.price*l.qty, 0);
+    const withC = priceWithCoupons(lines, [c]);
+    return round2(base - withC);
+  };
+  const base = cartCodes.reduce((s,k)=>{
+    const it = MENU.find(m=>m.code===k);
+    return s + (it ? it.price*cart[k] : 0);
+  }, 0);
+  // 当前最优组合里实际用到的券
+  const lines = cartCodes.map(k=>{
+    const it = MENU.find(m=>m.code===k);
+    return it ? {code:it.code, price:it.price, qty:cart[k]} : null;
+  }).filter(Boolean);
+  const usableNow = COUPONS.filter(c => couponState[c.id] && couponActive(c, new Date(), cartCodes));
+  const opt = lines.length ? optimizePrice(lines, usableNow, 4) : null;
+  const usedIds = new Set((opt ? opt.used : []).map(c=>c.id));
+
   document.getElementById("couponBox").innerHTML = COUPONS.map(c=>{
     const on = couponState[c.id];
     const live = couponActive(c, new Date(), cartCodes);
+    const worth = live ? soloWorth(c) : 0;
     const tag = c.group ? `<span class="tag excl">同组互斥</span>`
                         : `<span class="tag stack">可叠加</span>`;
     const off = live ? "" : `<span class="tag" style="background:#EEE9E3;color:#8A7F76">当前不可用</span>`;
     const note = !live && c.hours
-      ? `<span style="color:var(--muted);font-size:11px">仅 ${c.hours[0]}:00–${c.hours[1]}:00</span>`
-      : !live && c.catOnly ? `<span style="color:var(--muted);font-size:11px">需含${
+      ? `<span class="cn-note">仅 ${c.hours[0]}:00–${c.hours[1]}:00 可用</span>`
+      : !live && c.catOnly ? `<span class="cn-note">需含 ${
           c.catOnly.map(k=>CAT_LABEL[k]||k).join("/")}</span>` : "";
-    return `<label class="cp" style="${live?"":"opacity:.62"}">
+    // 正被最优组合采用的券，标一个「已采用」，让用户看到引擎的选择
+    const used = usedIds.has(c.id)
+      ? `<span class="tag used">已采用</span>` : "";
+    // 省 0 元（门槛不够）就直说「还差 ¥x」
+    const short = live && worth <= 0.005 && c.kind === "full_reduce" && base < c.threshold
+      ? `<span class="cn-note">还差 ¥${round2(c.threshold - base)}</span>` : "";
+    const val = live && worth > 0.005
+      ? `<span class="cn-save">省 ¥${worth.toFixed(2)}</span>` : "";
+    return `<label class="cp${on?" cp-on":""}${live?"":" cp-off"}">
       <input type="checkbox" ${on?"checked":""} onchange="toggleCp('${c.id}',this.checked)">
-      <span style="flex:1">${c.name} <span style="color:var(--muted);font-size:11.5px">（${desc(c)}）</span>${note}</span>
-      ${tag}${off}
+      <span class="cn-body">
+        <span class="cn-name">${c.name}</span>
+        <span class="cn-sub">${desc(c)}${note}${short}</span>
+      </span>
+      <span class="cn-tail">${val}${used}${tag}${off}</span>
     </label>`;
   }).join("");
 }
@@ -1209,7 +1456,33 @@ function chg(code, d){
   renderMenu(); renderCoupons(); renderSave(); saveState();
 }
 function clearCart(){ Object.keys(cart).forEach(k=>delete cart[k]); renderMenu(); renderCoupons(); renderSave(); saveState(); }
-function toggleCp(id, on){ couponState[id] = on; renderSave(); saveState(); }
+function toggleCp(id, on){ couponState[id] = on; renderSave(); renderCoupons(); saveState(); }
+
+/* 一键最优用券：遍历所有可用券的可行组合，勾上实付最低的那一组。
+   与 renderSave 用的是同一个 optimizePrice 引擎，口径完全一致。 */
+function autoPickCoupons(){
+  const codes = Object.keys(cart);
+  const btn = document.getElementById("autoCpBtn");
+  if(!codes.length){
+    if(btn){ btn.disabled = true; btn.textContent = "先加餐"; setTimeout(()=>{ btn.disabled=false; btn.textContent="⚡ 一键最优"; }, 1400); }
+    return;
+  }
+  const lines = codes.map(k=>{
+    const it = MENU.find(m=>m.code===k);
+    return it ? {code:it.code, price:it.price, qty:cart[k]} : null;
+  }).filter(Boolean);
+  // 候选池＝所有「可以用」的券（不看当前是否已勾选），否则无法推荐更强组合
+  const cand = COUPONS.filter(c => couponActive(c, new Date(), codes));
+  const best = optimizePrice(lines, cand, 4);
+  Object.keys(couponState).forEach(k => { couponState[k] = false; });
+  if(best && best.used.length){
+    best.used.forEach(c => { couponState[c.id] = true; });
+    if(btn){ const t = btn.textContent; btn.textContent = "已省 ¥" + best.saved.toFixed(2); setTimeout(()=>{ btn.textContent = t; }, 1500); }
+  } else if(btn){
+    const t = btn.textContent; btn.textContent = "暂无可用券"; setTimeout(()=>{ btn.textContent = t; }, 1500);
+  }
+  renderCoupons(); renderSave(); saveState();
+}
 
 /* 把配餐页推荐的方案一键写进购物车，然后跳到「券后最优价」比价 */
 function adoptPlan(idx){
@@ -1598,6 +1871,9 @@ document.getElementById("kcalVal").textContent =
 });
 
 renderCats(); renderMenu(); renderCoupons(); renderSave(); renderPlans();
+// 其余页签也先渲染一遍：避免「首次切过去才出现内容」的空窗，
+// 也让任何未来的深链（#tab=...）不需要额外处理。
+renderBundle(); renderTools(); renderMcpMap();
 </script>
 </body>
 </html>

@@ -48,7 +48,9 @@ const doc = {
     return [];
   },
 };
-const sandbox = { console, document: doc, Date, localStorage, JSON };
+const sandbox = { console, document: doc, Date, localStorage, JSON,
+  // 页面脚本会用到定时器（如按钮文案的短暂回显），沙箱里需要一个空实现
+  setTimeout: () => 0, clearTimeout: () => {} };
 sandbox.window = sandbox;   // 在浏览器里 window === globalThis；这里做等价处理
 sandbox.location = { origin: 'https://example.com', pathname: '/mcd-mcmate/', hash: '' };
 sandbox.navigator = {};
@@ -211,7 +213,117 @@ console.log(shareBad.keys.indexOf('evil-code') === -1
   ? 'PASS  分享链接忽略非法 code'
   : `FAIL  未过滤非法 code: ${JSON.stringify(shareBad)}`);
 
+// 图形多样性：去掉颜色后按「结构 + 尺寸」分组，要求足够多的菜有独立外形。
+// 之前 12 个汉堡共用同一骨架，只靠颜色区分，缩略图上几乎分不出谁是谁。
+const artDiv = vm.runInContext(`
+  (function(){
+    var sig = {}, groups = [];
+    MENU.forEach(function(m){
+      var s = dishArt(m.code, m.cat)
+        .replace(/#[0-9A-Fa-f]{3,6}/g, '#C')          // 抹掉颜色
+        .replace(/-?\\d+\\.\\d+/g, function(n){ return Math.round(+n); }); // 保留尺寸量级
+      if(!sig[s]){ sig[s] = []; groups.push(s); }
+      sig[s].push(m.code);
+    });
+    var sizes = groups.map(function(k){ return sig[k].length; }).sort(function(a,b){ return b-a; });
+    return { unique: groups.length, total: MENU.length, biggest: sizes[0] };
+  })()
+`, sandbox);
+console.log(artDiv.unique >= 40 && artDiv.biggest <= 6
+  ? `PASS  缩略图外形足够多样（${artDiv.unique}/${artDiv.total} 种外形，最大重复组 ${artDiv.biggest}）`
+  : `FAIL  缩略图区分度不足：${artDiv.unique}/${artDiv.total} 种外形，最大重复组 ${artDiv.biggest}`);
+
+// 双层汉堡必须比单层明显更高（这是「双层」唯一可靠的视觉线索）
+const heights = vm.runInContext(`
+  (function(){
+    function stackH(code){
+      var svg = dishArt(code, 'burger');
+      // 底盖顶边 y = 34 + 夹层高度，从底盖路径里读回来
+      var m = svg.match(/M12 ([\\d.]+) Q40/);
+      return m ? +m[1] - 34 : -1;
+    }
+    return { single: stackH('cheeseburger'), dbl: stackH('dblcheese'),
+             bigmac: stackH('bigmac') };
+  })()
+`, sandbox);
+console.log(heights.dbl - heights.single >= 5 && heights.bigmac - heights.single >= 5
+  ? `PASS  双层汉堡视觉上更高（单层 ${heights.single}px → 双层 ${heights.dbl}px / 巨无霸 ${heights.bigmac}px）`
+  : `FAIL  双层与单层高度差不足: ${JSON.stringify(heights)}`);
+
+// 麦满分用英式松饼（扁平顶盖），不能和普通圆顶汉堡同形
+const muffinOk = vm.runInContext(`
+  (function(){
+    var m = dishArt('egg-mcmuffin', 'breakfast');
+    var b = dishArt('cheeseburger', 'burger');
+    return { muffinHasRect: /<rect x="11" y="18"/.test(m), burgerHasDome: /Q40 3 71 34/.test(b) };
+  })()
+`, sandbox);
+console.log(muffinOk.muffinHasRect && muffinOk.burgerHasDome
+  ? 'PASS  麦满分用扁平松饼顶盖，与圆顶汉堡区分开'
+  : `FAIL  麦满分外形未区分: ${JSON.stringify(muffinOk)}`);
+
 console.log('\n全部渲染检查完成');
+
+// 「一键最优用券」必须真的选出比手工全不选更省的组合，且结果可重复
+const auto = vm.runInContext(`
+  (function(){
+    Object.keys(cart).forEach(function(k){ delete cart[k]; });
+    cart['bigmac'] = 2; cart['fries-m'] = 1; cart['coke-m'] = 2;
+    COUPONS.forEach(function(c){ couponState[c.id] = false; });
+    autoPickCoupons();
+    var picked = COUPONS.filter(function(c){ return couponState[c.id]; })
+                        .map(function(c){ return c.id; }).sort();
+    var first = picked.join(',');
+    var saveHtml = document.getElementById('saveResult').innerHTML;
+    var m = saveHtml.match(/已为你省 ¥([\\d.]+)/);
+    autoPickCoupons();  // 再点一次，结果应完全一致（幂等）
+    var again = COUPONS.filter(function(c){ return couponState[c.id]; })
+                       .map(function(c){ return c.id; }).sort().join(',');
+    var bill = document.getElementById('saveResult').innerHTML.match(/券后应付[\\s\\S]*?¥([\\d.]+)/);
+    return { first: first, again: again, saved: m ? +m[1] : 0,
+             payable: bill ? +bill[1] : 0 };
+  })()
+`, sandbox);
+console.log(auto.first && auto.saved > 0 && auto.payable > 0
+    && auto.first === auto.again
+  ? `PASS  一键最优用券有效且幂等（用 ${auto.first}，省 ¥${auto.saved.toFixed(2)}，实付 ¥${auto.payable.toFixed(2)}）`
+  : `FAIL  一键最优用券异常: ${JSON.stringify(auto)}`);
+
+// 券面板必须展示「省 ¥」估值与互斥/可叠加标签
+const cpRendered = vm.runInContext(`
+  (function(){
+    renderCoupons();
+    var h = document.getElementById('couponBox').innerHTML;
+    return { save: (h.match(/cn-save/g) || []).length,
+             excl: (h.match(/tag excl/g) || []).length,
+             stack: (h.match(/tag stack/g) || []).length,
+             bad: /undefined|NaN/.test(h) };
+  })()
+`, sandbox);
+console.log(!cpRendered.bad && cpRendered.save > 0 && cpRendered.excl > 0 && cpRendered.stack > 0
+  ? `PASS  券面板含省钱估值（${cpRendered.save} 张券标了省额，互斥 ${cpRendered.excl} / 可叠加 ${cpRendered.stack}）`
+  : `FAIL  券面板渲染异常: ${JSON.stringify(cpRendered)}`);
+
+// 网格视图必须渲染成 .gcard（而不是把列表塞进网格容器）
+const gridOk = vm.runInContext(`
+  (function(){
+    setView('grid');
+    var h = document.getElementById('menuBox').innerHTML;
+    var cls = document.getElementById('menuBox').className;
+    var res = { gcard: (h.match(/class="gcard/g) || []).length,
+                row: (h.match(/class="row/g) || []).length,
+                cls: cls };
+    setView('list');
+    var h2 = document.getElementById('menuBox').innerHTML;
+    res.rowAfter = (h2.match(/class="row/g) || []).length;
+    res.clsAfter = document.getElementById('menuBox').className;
+    return res;
+  })()
+`, sandbox);
+console.log(gridOk.gcard === 59 && gridOk.row === 0 && /grid-view/.test(gridOk.cls)
+    && gridOk.rowAfter === 59 && !/grid-view/.test(gridOk.clsAfter)
+  ? `PASS  视图切换正确（网格 ${gridOk.gcard} 张卡 / 列表 ${gridOk.rowAfter} 行）`
+  : `FAIL  视图切换异常: ${JSON.stringify(gridOk)}`);
 
 // 校验 Demo 内的工具清单与 references/tools.md 完全一致（防止两边漂移）
 const toolsMd = path.join(__dirname, '..', 'references', 'tools.md');
