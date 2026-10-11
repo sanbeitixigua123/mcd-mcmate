@@ -2,6 +2,7 @@
 .env
 .env.*
 *.env
+.github-token
 token
 *.token
 *token*.txt
